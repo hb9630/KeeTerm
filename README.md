@@ -78,7 +78,7 @@ $ ./target/release/term-gateway 7697 --auth-file pass.txt
 
 - Auth: code-server style single password; editing the password file takes effect immediately
   (old sessions are revoked); the cookie is derived from the password, so restarts keep you logged in
-- See `systemd/` for a unit file; use frp/reverse proxy + a strong password on the public internet
+- Use frp/reverse proxy + a strong password on the public internet
 
 ---
 
@@ -140,7 +140,7 @@ $ ./target/release/term-gateway 7697 --auth-file pass.txt
 ```
 
 - auth:code-server 式单密码;改密码文件即时生效(旧会话作废);cookie 由密码派生,重启不掉线
-- systemd 示例见 `systemd/`;公网建议 frp/反代 + 强密码
+- 公网建议 frp/反代 + 强密码
 
 ---
 

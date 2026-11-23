@@ -6,3 +6,6 @@ run.env
 
 # 前端构建产物不入库(本地保留供 rust-embed 嵌入)
 web/dist/
+
+# 部署件不入库(本地保留)
+systemd/
