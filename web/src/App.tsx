@@ -11,7 +11,7 @@ import MonitorAside from "./MonitorPanel";
 // 编辑器内核(CodeMirror core,无语言包)体量不小:懒加载,点"编辑"才拉 chunk,主包不背
 const CodeArea = lazy(() => import("./CodeArea"));
 import {
-  Box, ChevronDown, ChevronRight, Container, Download, FolderTree, HardDrive, Info, Layers, Loader2, Monitor,
+  Box, ChevronDown, ChevronRight, Container, Download, FolderTree, HardDrive, Info, Languages, Layers, Loader2, Monitor,
   Pencil, Plus, Server, SquareTerminal, Terminal, Trash2, X,
 } from "lucide-react";
 
