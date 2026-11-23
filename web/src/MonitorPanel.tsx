@@ -3,6 +3,7 @@
    去 dnd-kit(KeeTerm 不引):卡片序=mon.toml 声明序;数据 15s 后端采集,前端 15s 拉取。 */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, cn, toast } from "./lib";
+import { t } from "./i18n";
 import { Activity, Cpu, Image as ImageIcon, Plus, Server, type LucideIcon } from "lucide-react";
 
 type Row = { k: string; v: string };
@@ -339,7 +340,7 @@ export default function MonitorAside() {
     const names = cfg.hosts.map(h => h.trim()).filter(Boolean);
     api("/api/t/mon/cfg", { method: "POST", body: JSON.stringify(cfg) })
       .then(() => {
-        toast("已保存");
+        toast(t("已保存"));
         setCfgOpen(false);
         // 前端即时增删卡片(不等后端采集):删=剔除,新=灰占位卡,数据随后端并发轮次填充
         setData(d => {
@@ -448,14 +449,14 @@ export default function MonitorAside() {
   return (
     <div className={cn("flex h-full shrink-0 flex-col border-l border-border/70 bg-card", open ? "w-[264px]" : "w-14")}>
       <div className={cn("flex h-9 shrink-0 items-center gap-2 border-b border-border/70 px-2", !open && "justify-center px-0")}>
-        <button type="button" onClick={() => setOpen(v => !v)} title="展开/缩起监控栏"
+        <button type="button" onClick={() => setOpen(v => !v)} title={t("展开/缩起监控栏")}
           className="flex cursor-pointer items-center p-0 text-base font-semibold text-foreground hover:text-primary">
           <Activity className="inline size-4" />
         </button>
         {open && <>
-          <span className="text-[13px] font-semibold">监控</span>
+          <span className="text-[13px] font-semibold">{t("监控")}</span>
           <LiveClock />
-          <button onClick={openCfg} title="配置监控项(主机 / URL 探针)"
+          <button onClick={openCfg} title={t("配置监控项(主机 / URL 探针)")}
             className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
             <Plus className="size-3.5" />
           </button>
@@ -515,25 +516,25 @@ export default function MonitorAside() {
             <datalist id="mon-targets">{targetNames.map(n => <option key={n} value={n} />)}</datalist>
             <div className="grid gap-2.5 text-[13px]">
               <div>
-                <div className="mb-1 text-[12px] font-medium text-muted-foreground">主机(采集 CPU/内存/存储/GPU)</div>
+                <div className="mb-1 text-[12px] font-medium text-muted-foreground">{t("主机(采集 CPU/内存/存储/GPU)")}</div>
                 {cfg.hosts.map((h, i) => (
                   <div key={i} className="mb-1 flex items-center gap-1.5">
                     <input value={h} list="mon-targets" onChange={e => setCfg(c => ({ ...c, hosts: c.hosts.map((x, j) => j === i ? e.target.value : x) }))}
-                      placeholder="目标名(ssh config / 已登记)"
+                      placeholder={t("目标名(ssh config / 已登记)")}
                       className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
                     <button title="移除" onClick={() => setCfg(c => ({ ...c, hosts: c.hosts.filter((_, j) => j !== i) }))}
                       className="rounded p-1 text-muted-foreground/60 hover:text-red-500">✕</button>
                   </div>
                 ))}
                 <button onClick={() => setCfg(c => ({ ...c, hosts: [...c.hosts, ""] }))}
-                  className="rounded px-1.5 py-1 text-[12px] text-primary hover:bg-accent">+ 添加主机</button>
+                  className="rounded px-1.5 py-1 text-[12px] text-primary hover:bg-accent">{t("+ 添加主机")}</button>
               </div>
               <div>
                 <div className="mb-1 text-[12px] font-medium text-muted-foreground">URL 探针(返回 JSON;{"{rows,bar,value}"} 协议或任意 JSON)</div>
                 {cfg.probes.map((p, i) => (
                   <div key={i} className="mb-1 flex items-center gap-1.5">
                     <input value={p.name} onChange={e => setCfg(c => ({ ...c, probes: c.probes.map((x, j) => j === i ? { ...x, name: e.target.value } : x) }))}
-                      placeholder="名称" className="w-28 shrink-0 rounded border border-input bg-background px-2 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
+                      placeholder={t("名称")} className="w-28 shrink-0 rounded border border-input bg-background px-2 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
                     <input value={p.url} onChange={e => setCfg(c => ({ ...c, probes: c.probes.map((x, j) => j === i ? { ...x, url: e.target.value } : x) }))}
                       placeholder="https://…/monitor"
                       className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1.5 outline-none focus:ring-1 focus:ring-ring" />
@@ -542,12 +543,12 @@ export default function MonitorAside() {
                   </div>
                 ))}
                 <button onClick={() => setCfg(c => ({ ...c, probes: [...c.probes, { name: "", url: "" }] }))}
-                  className="rounded px-1.5 py-1 text-[12px] text-primary hover:bg-accent">+ 添加探针</button>
+                  className="rounded px-1.5 py-1 text-[12px] text-primary hover:bg-accent">{t("+ 添加探针")}</button>
               </div>
             </div>
             <div className="mt-4 flex justify-end gap-2 text-[13px]">
-              <button onClick={() => setCfgOpen(false)} className="rounded px-3 py-1.5 text-muted-foreground hover:bg-accent">取消</button>
-              <button onClick={saveCfg} className="rounded bg-primary px-3 py-1.5 text-primary-foreground hover:opacity-90">保存</button>
+              <button onClick={() => setCfgOpen(false)} className="rounded px-3 py-1.5 text-muted-foreground hover:bg-accent">{t("取消")}</button>
+              <button onClick={saveCfg} className="rounded bg-primary px-3 py-1.5 text-primary-foreground hover:opacity-90">{t("保存")}</button>
             </div>
           </div>
         </div>

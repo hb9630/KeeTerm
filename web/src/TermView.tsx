@@ -1,6 +1,7 @@
 /* 终端视图(自 ieoss @shared/components/Terminal 剥离):ws 直连后端泵,
    二进制=输入/输出,text={"cols","rows"}=resize,ping=空闲保活,__ERR__=停止态。 */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { t } from "./i18n";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Loader2 } from "lucide-react";
@@ -260,19 +261,19 @@ export function TermView({ wsPath, uiOffset = 0, active = true, onClose, onBusy,
       )}
       {/* 外观按钮:点击展开/收起(点外自动收);面板开着按钮常亮 */}
       <div data-term-panel style={{ right: 8 + uiOffset }} className="absolute top-2 z-30">
-      <button title="终端外观:字号 / 主题" onClick={() => setPanel(v => !v)}
+      <button title={t("终端外观:字号 / 主题")} onClick={() => setPanel(v => !v)}
         className={`block rounded-md border border-white/10 bg-zinc-900/80 px-1.5 py-0.5 text-[13px] transition-opacity ${panel ? "text-zinc-100 opacity-100" : "text-zinc-400 opacity-60 hover:text-zinc-100 hover:opacity-100"}`}>Aa</button>
       {panel && (
         <div data-term-panel
           className="absolute right-0 top-full w-[19rem] rounded-md border border-white/10 bg-zinc-900 p-2 text-[13px] shadow-lg">
           <div className="flex items-center gap-2 text-zinc-300">
-            <span>字号</span>
+            <span>{t("字号")}</span>
             <button onClick={() => setFont(prefs.fontSize - 1)} className="h-6 w-6 rounded hover:bg-white/10">−</button>
             <span className="w-6 text-center tabular-nums">{prefs.fontSize}</span>
             <button onClick={() => setFont(prefs.fontSize + 1)} className="h-6 w-6 rounded hover:bg-white/10">＋</button>
-            {prefs.fontSize !== 16 && <button onClick={() => setFont(16)} className="rounded px-1 text-[12px] text-zinc-500 hover:text-zinc-200">重置</button>}
+            {prefs.fontSize !== 16 && <button onClick={() => setFont(16)} className="rounded px-1 text-[12px] text-zinc-500 hover:text-zinc-200">{t("重置")}</button>}
           </div>
-          <div className="mt-2 px-0.5 text-[12px] text-zinc-400">主题(Windows Terminal 配色)</div>
+          <div className="mt-2 px-0.5 text-[12px] text-zinc-400">{t("主题(Windows Terminal 配色)")}</div>
           <div className="mt-1 space-y-0.5">
             {THEME_KEYS.map(k => {
               const th = TERM_THEMES[k];

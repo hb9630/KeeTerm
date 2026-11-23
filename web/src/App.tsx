@@ -3,6 +3,7 @@
    纯小工具:目标即 ~/.ssh/config(VSCode Remote 哲学),targets.toml 只存增强项。 */
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { api, cn, toast } from "./lib";
+import { curLang, switchLang, t } from "./i18n";
 import { TermView } from "./TermView";
 import Explorer from "./Explorer";
 import Markdown from "./Markdown";
@@ -461,7 +462,7 @@ export default function App() {
     }
     try {
       await api("/api/t/targets", { method: "POST", body: JSON.stringify({ name: edit.name, addr, port, user, note: edit.note }) });
-      toast("已保存"); setEdit(null); loadTargets();
+      toast(t("已保存")); setEdit(null); loadTargets();
     } catch (e) { toast(e instanceof Error ? e.message : String(e), true); }
   };
   const delTarget = async (t: Target) => {
@@ -549,7 +550,7 @@ export default function App() {
           </>);
         })()}
         {Array.isArray(cts) && !cts.length && (
-          <div className="py-1 pl-8 text-[12px] text-muted-foreground/70">无容器(docker/podman)</div>
+          <div className="py-1 pl-8 text-[12px] text-muted-foreground/70">{t("无容器(docker/podman)")}</div>
         )}
       </div>
     );
@@ -568,7 +569,7 @@ export default function App() {
         <SquareTerminal className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate">{sess}</span>
       </button>
-      <button title="关闭会话" onClick={() => killSess(t, ctn, sess)}
+      <button title={t("关闭会话")} onClick={() => killSess(t, ctn, sess)}
         className="mr-1 shrink-0 cursor-pointer rounded p-1 text-muted-foreground/60 hover:bg-accent hover:text-red-500">
         <X className="h-3 w-3" />
       </button>
@@ -612,9 +613,9 @@ export default function App() {
                 title={`${name}${t.ctn ? ` · ${t.ctn}` : ""}${t.session ? ` · tmux:${t.session}` : ""}`}>
                 <span className="flex max-w-52 items-center gap-1 truncate">
                   {active !== k && (live[k]?.idle
-                    ? <span title="已静默(干完/等确认)" className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-500" />
+                    ? <span title={t("已静默(干完/等确认)")} className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-500" />
                     : live[k]?.busy
-                      ? <span title="运行中" className="h-1.5 w-1.5 shrink-0 animate-spin rounded-full border-2 border-red-500/70 border-t-transparent" />
+                      ? <span title={t("运行中")} className="h-1.5 w-1.5 shrink-0 animate-spin rounded-full border-2 border-red-500/70 border-t-transparent" />
                       : null)}
                   {t.ctn ?? name}
                   {t.session && <><span className="text-muted-foreground/60">·</span><span className="truncate text-muted-foreground">{t.session}</span></>}
@@ -624,7 +625,7 @@ export default function App() {
                 {t.root && <span className="rounded bg-muted px-1 text-[10px] leading-4 text-muted-foreground" title={`分屏(${leafCount(t.root)} 面板)`}>⊞{leafCount(t.root)}</span>}
                 <button className="rounded p-0.5 opacity-30 hover:bg-accent hover:opacity-100"
                   onClick={e => { e.stopPropagation(); closeTab(k); }}
-                  title="关闭(tmux 会话仍在目标机运行)">
+                  title={t("关闭(tmux 会话仍在目标机运行)")}>
                   <X className="h-3 w-3" />
                 </button>
               </div>
@@ -633,11 +634,11 @@ export default function App() {
           {/* Windows Terminal 式:+=新标签登录本机;下拉=主机选择器(左栏的对话框版)。
               放滚动容器内紧跟最后一个 tab(容器不占满整行,按钮不被顶到最右) */}
           <div data-picker ref={pickRef} className="relative flex shrink-0 items-center gap-0.5 px-1.5">
-            <button title="新标签:登录本机" onClick={() => openTab({ target: "local" })}
+            <button title={t("新标签:登录本机")} onClick={() => openTab({ target: "local" })}
               className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
               <Plus className="h-4 w-4" />
             </button>
-            <button title="选择主机登录(左键展开,右键连接)" onClick={togglePicker}
+            <button title={t("选择主机登录(左键展开,右键连接)")} onClick={togglePicker}
               className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
               <ChevronDown className="h-4 w-4" />
             </button>
@@ -645,17 +646,22 @@ export default function App() {
               <div data-picker
                 className="thin-scroll fixed z-50 max-h-[70vh] w-72 max-w-[calc(100vw-16px)] overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg"
                 style={{ left: pickPos.left, top: pickPos.top }}>
-                <div className="px-2 pb-1 pt-0.5 text-[11px] text-muted-foreground">主机 / 容器(右键选择连接方式)</div>
-                {targets == null && <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />加载目标…</div>}
+                <div className="px-2 pb-1 pt-0.5 text-[11px] text-muted-foreground">{t("主机 / 容器(右键选择连接方式)")}</div>
+                {targets == null && <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{t("加载目标…")}</div>}
                 {renderTree(pOpen, pGrp, pToggle, pEngOf, setPGrp)}
                 <div className="mx-2 my-1 h-px bg-border/70" />
                 <button onClick={openSshCfg}
                   className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-[13px] transition-colors hover:bg-accent">
-                  <Pencil className="h-3.5 w-3.5 text-muted-foreground" /><span className="flex-1">编辑 ssh config(登记主机)</span>
+                  <Pencil className="h-3.5 w-3.5 text-muted-foreground" /><span className="flex-1">{t("编辑 ssh config(登记主机)")}</span>
                 </button>
                 <button onClick={() => { setPicker(false); setAbout(true); }}
                   className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-[13px] transition-colors hover:bg-accent">
-                  <Info className="h-3.5 w-3.5 text-muted-foreground" /><span className="flex-1">关于</span>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground" /><span className="flex-1">{t("关于")}</span>
+                </button>
+                <button onClick={() => { setPicker(false); switchLang(); }}
+                  className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-[13px] transition-colors hover:bg-accent">
+                  <Languages className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="flex-1">{curLang() === "zh" ? "English" : "中文"}</span>
                 </button>
               </div>
             )}
@@ -704,7 +710,7 @@ export default function App() {
           <div className="px-2 pb-1 pt-0.5 text-[11px] text-muted-foreground">
             {ctx.ctn ? `${ctx.t.name} · ${ctx.ctn}` : ctx.t.name}
           </div>
-          {item("SSH 登入", ctx.ctn
+          {item(t("SSH 登入"), ctx.ctn
             ? (engOf(ctx.t.name) === "podman" ? <Box className="h-3.5 w-3.5 text-muted-foreground" /> : <Box className="h-3.5 w-3.5 text-muted-foreground" />)
             : <Monitor className="h-3.5 w-3.5 text-muted-foreground" />,
             e => openConn(ctx.ctn
@@ -712,15 +718,15 @@ export default function App() {
               : { target: ctx.t.name }, e))}
           <div className="mx-2 my-1 h-px bg-border/70" />
           {ctx.sessions === "loading"
-            ? <div className="flex items-center gap-2 px-2 py-1.5 text-[13px] text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />查 tmux 会话…</div>
+            ? <div className="flex items-center gap-2 px-2 py-1.5 text-[13px] text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{t("查 tmux 会话…")}</div>
             : <>
               {(ctx.sessions || []).map(s => sessItem(ctx.t, ctx.ctn, s))}
-              {item(ctx.sessions?.length ? "新建会话" : "新建 tmux", <Plus className="h-3.5 w-3.5 text-muted-foreground" />,
+              {item(ctx.sessions?.length ? t("新建会话") : t("新建 tmux"), <Plus className="h-3.5 w-3.5 text-muted-foreground" />,
                 e => openConn(ctx.ctn
                   ? { target: ctx.t.name, ctn: ctx.ctn, engine: engOf(ctx.t.name) || undefined, session: nextSession(ctx.sessions) }
                   : { target: ctx.t.name, session: nextSession(ctx.sessions) }, e))}
             </>}
-          <div className="px-2 pb-0.5 pt-1 text-[10px] text-muted-foreground/70">Shift+点击=左右拆分 · Alt+点击=上下拆分</div>
+          <div className="px-2 pb-0.5 pt-1 text-[10px] text-muted-foreground/70">{t("Shift+点击=左右拆分 · Alt+点击=上下拆分")}</div>
         </div>
       )}
 
@@ -733,17 +739,17 @@ export default function App() {
           <div className="flex h-[80vh] w-[60rem] max-w-[92vw] flex-col rounded-lg border border-border bg-card p-4 shadow-xl">
             <div className="mb-2 flex items-center gap-2">
               <span className="text-sm font-medium">~/.ssh/config</span>
-              <span className="text-[11px] text-muted-foreground">主机列表数据源 · 保存后下拉列表即时刷新</span>
+              <span className="text-[11px] text-muted-foreground">{t("主机列表数据源 · 保存后下拉列表即时刷新")}</span>
               <button onClick={() => setSshCfg(null)} className="ml-auto rounded p-1 text-muted-foreground hover:bg-accent"><X className="h-4 w-4" /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden rounded border border-border/70">
               {sshCfg.loading
-                ? <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />读取中…</div>
+                ? <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{t("读取中…")}</div>
                 : <CodeArea value={sshCfg.text} onChange={t => setSshCfg(s => s ? { ...s, text: t } : s)} onSave={saveSshCfg} />}
             </div>
             <div className="mt-3 flex justify-end gap-2 text-[13px]">
-              <button onClick={() => setSshCfg(null)} className="rounded px-3 py-1.5 text-muted-foreground hover:bg-accent">关闭</button>
-              <button onClick={saveSshCfg} className="rounded bg-primary px-3 py-1.5 text-primary-foreground hover:opacity-90">保存</button>
+              <button onClick={() => setSshCfg(null)} className="rounded px-3 py-1.5 text-muted-foreground hover:bg-accent">{t("关闭")}</button>
+              <button onClick={saveSshCfg} className="rounded bg-primary px-3 py-1.5 text-primary-foreground hover:opacity-90">{t("保存")}</button>
             </div>
           </div>
         </div>
@@ -800,8 +806,8 @@ export default function App() {
             </div>
             <p className="text-[11px] text-muted-foreground">需要密码的主机连接时会在终端里提示输入,无需在此预存</p>
             <div className="mt-4 flex justify-end gap-2 text-[13px]">
-              <button onClick={() => setEdit(null)} className="rounded px-3 py-1.5 text-muted-foreground hover:bg-accent">取消</button>
-              <button onClick={saveEdit} className="rounded bg-primary px-3 py-1.5 text-primary-foreground hover:opacity-90">保存</button>
+              <button onClick={() => setEdit(null)} className="rounded px-3 py-1.5 text-muted-foreground hover:bg-accent">{t("取消")}</button>
+              <button onClick={saveEdit} className="rounded bg-primary px-3 py-1.5 text-primary-foreground hover:opacity-90">{t("保存")}</button>
             </div>
           </div>
         </div>
@@ -1016,7 +1022,7 @@ function TermTab({ conn, keyId, visible, onClose, onBusy, onIdle, onWake, pane }
       try {
         await api(`${fsPath}/save`, { method: "POST", body: JSON.stringify({ path: t.path, content }) });
         setPvTabs(ts => ts.map(x => x.path === t.path ? { ...x, text: content } : x));
-        toast("已保存");
+        toast(t("已保存"));
       } catch (e) { toast(e instanceof Error ? e.message : String(e), true); }
     })();
   };
@@ -1027,14 +1033,14 @@ function TermTab({ conn, keyId, visible, onClose, onBusy, onIdle, onWake, pane }
         {(canTree || pane) && (
           <div className="absolute right-2 top-2 z-20 flex gap-1">
             {canTree && (
-              <button onClick={() => setUi(u => ({ ...u, treeOpen: !u.treeOpen }))} title={ui.treeOpen ? "收起文件树" : "展开文件树"}
+              <button onClick={() => setUi(u => ({ ...u, treeOpen: !u.treeOpen }))} title={ui.treeOpen ? t("收起文件树") : t("展开文件树")}
                 className={cn("rounded-md border border-white/10 bg-zinc-900/80 p-1 transition-opacity",
                   ui.treeOpen ? "text-zinc-100 opacity-100" : "text-zinc-400 opacity-60 hover:text-zinc-100 hover:opacity-100")}>
                 <FolderTree className="h-3.5 w-3.5" />
               </button>
             )}
             {pane && (
-              <button onClick={onClose} title="关闭此面板"
+              <button onClick={onClose} title={t("关闭此面板")}
                 className="rounded-md border border-white/10 bg-zinc-900/80 p-1 text-zinc-400 transition-opacity opacity-60 hover:text-red-400 hover:opacity-100">
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -1050,7 +1056,7 @@ function TermTab({ conn, keyId, visible, onClose, onBusy, onIdle, onWake, pane }
         const cur = pvTabs.find(t => t.path === pvCur) || pvTabs[pvTabs.length - 1];
         return (<>
           <div className="h-full w-1 shrink-0 cursor-col-resize bg-card"
-            title="拖动调整预览区宽度"
+            title={t("拖动调整预览区宽度")}
             onPointerDown={e => {
               e.preventDefault();
               const x0 = e.clientX, w0 = ui.pvW;
@@ -1075,33 +1081,33 @@ function TermTab({ conn, keyId, visible, onClose, onBusy, onIdle, onWake, pane }
               ))}
               <span className="ml-auto flex shrink-0 items-center self-center">
                 {["text", "md"].includes(cur.kind) && (cur.edit != null ? (<>
-                  <button title="保存(Ctrl+S)" onClick={() => savePv(cur)}
+                  <button title={t("保存(Ctrl+S)")} onClick={() => savePv(cur)}
                     className={cn("rounded px-1.5 py-0.5 text-[12px] hover:bg-accent", cur.edit !== cur.text ? "font-medium text-primary hover:text-primary" : "text-muted-foreground hover:text-foreground")}>
                     保存
                   </button>
-                  <button title="切回预览" onClick={() => stopEdit(cur)}
+                  <button title={t("切回预览")} onClick={() => stopEdit(cur)}
                     className="rounded px-1.5 py-0.5 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground">
                     预览
                   </button>
                 </>) : (
-                  <button title="编辑此文件" onClick={() => startEdit(cur)}
+                  <button title={t("编辑此文件")} onClick={() => startEdit(cur)}
                     className="rounded px-1.5 py-0.5 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground">
                     编辑
                   </button>
                 ))}
                 <button className="rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-                  title="下载当前文件" onClick={() => dlRemote(cur.path)}>
+                  title={t("下载当前文件")} onClick={() => dlRemote(cur.path)}>
                   <Download className="h-3.5 w-3.5" />
                 </button>
                 <button className="rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent hover:text-red-500"
-                  title="关闭预览区" onClick={closeAllPv}>
+                  title={t("关闭预览区")} onClick={closeAllPv}>
                   <X className="h-3.5 w-3.5" />
                 </button>
               </span>
             </div>
             <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-background">
-              {cur.err && <span className="text-sm text-destructive">读取失败</span>}
-              {cur.text == null && !cur.url && !cur.err && <span className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />加载中…</span>}
+              {cur.err && <span className="text-sm text-destructive">{t("读取失败")}</span>}
+              {cur.text == null && !cur.url && !cur.err && <span className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{t("加载中…")}</span>}
               {cur.edit != null ? (
                 <Suspense fallback={<span className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />加载编辑器…</span>}>
                   <CodeArea key={cur.path} value={cur.edit}
@@ -1137,7 +1143,7 @@ function TermTab({ conn, keyId, visible, onClose, onBusy, onIdle, onWake, pane }
       {ui.treeOpen && (
         <>
           <div className="h-full w-1 shrink-0 cursor-col-resize bg-card"
-            title="拖动调整文件树宽度"
+            title={t("拖动调整文件树宽度")}
             onPointerDown={e => {
               e.preventDefault();
               const x0 = e.clientX, w0 = ui.treeW, p0 = ui.pvW, hasPv = pvTabs.length > 0;
@@ -1164,7 +1170,7 @@ function TermTab({ conn, keyId, visible, onClose, onBusy, onIdle, onWake, pane }
                   onOpenFile={openFile}
                   onClose={() => setUi(u => ({ ...u, treeOpen: false }))}
                   activeFile={null} />
-              : <div className="flex flex-1 items-center justify-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />读取家目录…</div>}
+              : <div className="flex flex-1 items-center justify-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{t("读取家目录…")}</div>}
           </div>
         </>
       )}

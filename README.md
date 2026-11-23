@@ -1,5 +1,7 @@
 # KeeTerm
 
+[English](README.en.md) | 中文
+
 **独立 Web 终端 · ssh config 即目标 · 容器 / tmux / 文件工作站。**
 
 Rust 单二进制(前端内嵌),VSCode Remote 哲学:你已装好的 `~/.ssh/config` 就是主机清单,零服务端安装、零协议库(纯编排 ssh 客户端)。
