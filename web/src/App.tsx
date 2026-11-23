@@ -843,13 +843,13 @@ function SplitTab({ tab, visible, focus, onFocus, onClosePane, onRatio, onPaneBu
     return (
       <div key={n.id} className={cn("flex min-h-0 min-w-0 flex-1", horiz ? "flex-row" : "flex-col")}>
         <div className="flex min-h-0 min-w-0" style={{ flex: `1 1 ${n.ratio * 100}%` }}>{view(n.kids[0])}</div>
-        <div className={cn("shrink-0 bg-white/10 hover:bg-primary/60", horiz ? "w-[3px] cursor-col-resize" : "h-[3px] cursor-row-resize")}
+        <div className={cn("shrink-0 bg-transparent", horiz ? "w-[8px] cursor-col-resize" : "h-[8px] cursor-row-resize")}
           onPointerDown={e => {
             e.preventDefault();
             const box = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
             const x0 = e.clientX, y0 = e.clientY, r0 = n.ratio;
             const move = (ev: PointerEvent) => {
-              const total = Math.max(1, (horiz ? box.width : box.height) - 3);
+              const total = Math.max(1, (horiz ? box.width : box.height) - 8);
               const d = (horiz ? ev.clientX - x0 : ev.clientY - y0) / total;
               onRatio(n.id, Math.min(0.85, Math.max(0.15, r0 + d)));
             };

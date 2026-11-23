@@ -84,11 +84,23 @@ fn parse_rows(out: &[u8]) -> Option<Vec<Row>> {
     if rows.is_empty() { None } else { Some(rows) }
 }
 
-/// 探针曲线采点:value 字段或 bar.pct(keeper 协议)
+/// 探针曲线采点(框架协议):highlights[0].v 数值 > value > bar.pct
 fn probe_value(d: &Option<serde_json::Value>) -> Option<f64> {
     let d = d.as_ref()?;
+    if let Some(v) = d.get("highlights").and_then(|h| h.get(0)).and_then(|h| h.get("v")) {
+        if let Some(n) = v.as_f64().or_else(|| v.as_str().and_then(num_prefix)) { return Some(n); }
+    }
     d.get("value").and_then(|v| v.as_f64())
         .or_else(|| d.get("bar")?.get("pct")?.as_f64())
+}
+
+/// 字串开头的数值("1.0 张/时"→1.0;"42%"→42);"lazy · since…"这类非数值开头返回 None
+fn num_prefix(s: &str) -> Option<f64> {
+    let t = s.trim_start();
+    let end = t.find(|c: char| !(c.is_ascii_digit() || c == '.')).unwrap_or(t.len());
+    let head = &t[..end];
+    if head.is_empty() || !head.chars().any(|c| c.is_ascii_digit()) { return None; }
+    head.parse::<f64>().ok()
 }
 
 async fn tick_hosts(reg: &Arc<Registry>, cfg: &MonFile, mon: &Arc<Mutex<Mon>>) {
@@ -229,4 +241,35 @@ pub fn cfg_save(body: &CfgIn) -> Result<(), String> {
     }
     std::fs::write(mon_path(), toml::to_string_pretty(&File { host: &hosts, probe: &probes }).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn probe_value_protocol_priority() {
+        // highlights[0] 优先(value/bar 都让位)
+        assert_eq!(probe_value(&Some(json!({"highlights":[{"k":"a","v":"1.5 x"}],"value":9,"bar":{"pct":80}}))), Some(1.5));
+        // 纯数值字符串 / 数值型 / 百分号
+        assert_eq!(probe_value(&Some(json!({"highlights":[{"k":"a","v":"42%"}]}))), Some(42.0));
+        assert_eq!(probe_value(&Some(json!({"highlights":[{"k":"a","v":7}]}))), Some(7.0));
+        // 非数值开头 → 落到 value/bar
+        assert_eq!(probe_value(&Some(json!({"highlights":[{"k":"a","v":"lazy · since 11-23"}],"value":3}))), Some(3.0));
+        // 仅 value / 仅 bar.pct
+        assert_eq!(probe_value(&Some(json!({"value":12}))), Some(12.0));
+        assert_eq!(probe_value(&Some(json!({"title":"x","sum":"24723/50000","rows":[{"k":"a","v":"b"}]}))), None);
+        assert_eq!(probe_value(&None), None);
+    }
+
+    #[test]
+    fn num_prefix_cases() {
+        assert_eq!(num_prefix("1.0 张/时 · p50 40.0s"), Some(1.0));
+        assert_eq!(num_prefix("42%"), Some(42.0));
+        assert_eq!(num_prefix("  7 "), Some(7.0));
+        assert_eq!(num_prefix("lazy · since 11-23 18:55"), None);
+        assert_eq!(num_prefix("0 提/0 过"), Some(0.0));
+        assert_eq!(num_prefix(""), None);
+    }
 }

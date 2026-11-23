@@ -179,6 +179,33 @@ function ProbeSpark({ hist }: { hist?: number[] }) {
 
 const isRawProbe = (p: Probe) => !!p.data && !(p.data as Record<string, unknown>).rows;
 
+/** 探针协议:高亮项(框架定规则,被监控端按协议输出即可)。
+ *  highlights: [{k,v,tone?}] —— 被监控端声明"我最想被一眼看到的指标";
+ *  缩略图取第一条(标签=k,值=v);大卡右上角显示第一条,其余置顶加粗。 */
+function probeHigh(p: Probe): { k: string; v: string; tone?: string }[] {
+  const d = (p.data || {}) as any;
+  const hs = Array.isArray(d.highlights) ? d.highlights : [];
+  return hs.filter((h: any) => h && typeof h.k === "string" && (typeof h.v === "string" || typeof h.v === "number"))
+    .map((h: any) => ({ k: h.k, v: String(h.v), tone: typeof h.tone === "string" ? h.tone : undefined }));
+}
+/** 缩略图主指标:highlights 第一条 > sum "X/Y" > bar.pct > 在线状态 */
+function probeMain(p: Probe): { label: string; text: string; pct: number | null; tone?: string } {
+  const h = probeHigh(p)[0];
+  if (h) {
+    const n = parseFloat(h.v);
+    return { label: h.k, text: h.v, pct: /^[\d.]+\s*%$/.test(h.v.trim()) ? n : null, tone: h.tone };
+  }
+  // 注:非百分比文本(如 "1.0 张/时")只显示不染色,避免把速度当占用率误判成红
+  const d = (p.data || {}) as any;
+  if (typeof d.sum === "string") {
+    const m = /^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/.exec(d.sum.trim());
+    if (m) return { label: "当前", text: m[1], pct: parseFloat(m[2]) > 0 ? (parseFloat(m[1]) / parseFloat(m[2])) * 100 : null };
+    return { label: "当前", text: d.sum, pct: null };
+  }
+  if (d.bar?.pct != null) return { label: "状态", text: `${Math.round(d.bar.pct)}%`, pct: Math.round(d.bar.pct) };
+  return { label: "状态", text: p.online ? "√" : "–", pct: null };
+}
+
 function RawJsonCard({ p }: { p: Probe }) {
   const rows: { k: string; v: string }[] = [];
   flattenJson(p.data, "", rows, 0);
@@ -232,7 +259,7 @@ function ProbeCard({ p }: { p: Probe }) {
 }
 
 /** 收起态窄轨:一主机一组小格(CPU/内存/GPU/显存,有则显);探针一格=bar.pct/– */
-function MiniRail({ hosts, probes, items, onToggle }: { hosts: Hosts | null; probes: Probe[]; items: string[]; onToggle?: () => void }) {
+function MiniRail({ hosts, probes, items }: { hosts: Hosts | null; probes: Probe[]; items: string[] }) {
   // 顺序=父级 items(用户拖拽序,probe:url 键空间与展开态一致)
   const byKey = useMemo(() => new Map(probes.map((p) => [probeKey(p), p])), [probes]);
   const vmemPct = (v: string) => {
@@ -251,22 +278,34 @@ function MiniRail({ hosts, probes, items, onToggle }: { hosts: Hosts | null; pro
     </div>
   );
   return (
-    <div onClick={onToggle}
-      className="thin-scroll flex max-h-full min-h-full cursor-pointer flex-col items-center gap-2.5 overflow-y-auto py-2.5">
+    <div
+      className="thin-scroll flex max-h-full min-h-full flex-col items-center gap-2.5 overflow-y-auto py-2.5">
       {items.map((k) => {
         if (byKey.has(k)) {
           const p = byKey.get(k)!;
-          // 无 bar.pct 时 sum "X/Y" 直显当前数 X(keeper MiniRail 同款);都没有显在线状态
-          const m = typeof (p.data as any)?.sum === "string" ? /^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/.exec((p.data as any).sum.trim()) : null;
           const summary = ((p.data as any)?.rows || []).map((r: Row) => `${r.k} ${r.v}`).join(" · ")
             || (p.data ? Object.entries(p.data as Record<string, unknown>).slice(0, 6).map(([kk, vv]) => `${kk} ${JSON.stringify(vv)}`).join(" · ") : "");
+          const title = `${p.name}${p.online ? "" : "(离线)"}:${summary || p.url}`;
+          const high = p.online ? probeHigh(p) : [];
+          // 染色与主机格一致:tone 直接给色;值形如 "42%" 按占用率分级;其余文本只显示
+          const cellOf = (label: string, v: string, tone?: string) => {
+            const m = /^([\d.]+)\s*%$/.exec(v.trim());
+            const pct = m ? parseFloat(m[1]) : null;
+            const c = tone ? toneColor(tone)
+              : pct == null ? "text-foreground" : pct > 80 ? "text-red-500" : pct > 50 ? "text-amber-500" : "text-emerald-500";
+            return <Cell key={label} label={label} pct={pct} raw={pct == null ? v : undefined} color={c} title={title} />;
+          };
           return (
             <div key={k} className="flex w-full flex-col items-center gap-2.5">
               {k !== items[0] && <span className="w-6 border-t border-border/60" aria-hidden />}
-              <div className="max-w-full truncate px-0.5 text-[9px] leading-none text-muted-foreground/70">{p.name}</div>
-              <Cell label={m ? "当前" : "状态"} pct={p.data?.bar?.pct == null ? null : Math.round(p.data.bar.pct)} raw={m ? m[1] : (p.online ? "√" : "–")}
-                color={p.online ? "text-emerald-500" : undefined}
-                title={`${p.name}${p.online ? "" : "(离线)"}:${summary || p.url}`} />
+              <div className={`max-w-full truncate px-0.5 text-[9px] leading-none ${p.online ? "text-muted-foreground/70" : "text-muted-foreground/40"}`}>{p.name}</div>
+              {high.length > 0
+                ? high.map(h => cellOf(h.k, h.v, h.tone))
+                // 无 highlights:退回 keeper 协议(sum X/Y → X / bar.pct / 在线状态)
+                : (() => {
+                  const m = p.online ? probeMain(p) : { label: "状态", text: "–", pct: null, tone: undefined };
+                  return cellOf(m.label, m.text, m.tone);
+                })()}
             </div>
           );
         }
@@ -306,13 +345,51 @@ function readOrder(): string[] {
   try { return JSON.parse(localStorage.getItem("tg_mon_order") || "[]") || []; } catch { return []; }
 }
 
-/** 右侧监控栏:头部 Activity 开关+时钟+配置;收起=窄轨,展开=卡片列(可拖拽排序) */
+/** 右侧监控栏:头部 Activity 开关+时钟+配置;收起=窄轨,展开=卡片列(左缘把手可拖宽,可拖拽排序) */
 export default function MonitorAside() {
   const [open, setOpen] = useState(() => {
     try { const v = localStorage.getItem("tg_mon_open"); if (v != null) return v === "1"; } catch { /* */ }
     return true;
   });
   useEffect(() => { localStorage.setItem("tg_mon_open", open ? "1" : "0"); }, [open]);
+  // 拖宽:左缘把手,宽度连续变化并存档(双击把手回到默认)
+  const MIN_W = 200, MAX_W = 520, DEF_W = 264;
+  const [w, setW] = useState(() => {
+    try { const v = parseInt(localStorage.getItem("tg_mon_w") || "", 10); if (v >= MIN_W && v <= MAX_W) return v; } catch { /* */ }
+    return DEF_W;
+  });
+  useEffect(() => { localStorage.setItem("tg_mon_w", String(w)); }, [w]);
+  const wDrag = useRef<{ id: number; startX: number; startW: number } | null>(null);
+  const [wDragging, setWDragging] = useState(false);
+  const onWDown = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    wDrag.current = { id: e.pointerId, startX: e.clientX, startW: w };
+    setWDragging(true);
+  };
+  useEffect(() => {
+    if (!wDragging) return;
+    const mv = (e: PointerEvent) => {
+      const d = wDrag.current;
+      if (!d || e.pointerId !== d.id) return;
+      setW(Math.round(Math.max(MIN_W, Math.min(MAX_W, d.startW + (d.startX - e.clientX)))));
+    };
+    const up = () => { wDrag.current = null; setWDragging(false); };
+    window.addEventListener("pointermove", mv);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    return () => {
+      window.removeEventListener("pointermove", mv);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wDragging]);
+  useEffect(() => {
+    if (!wDragging) return;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    return () => { document.body.style.userSelect = ""; document.body.style.cursor = ""; };
+  }, [wDragging]);
   const [data, setData] = useState<{ hosts: Hosts; probes: Probe[] } | null>(null);
   const load = () => api<{ hosts: Hosts; probes: Probe[] }>("/api/t/mon")
     .then(setData).catch(() => {});
@@ -447,7 +524,14 @@ export default function MonitorAside() {
   }, []);
 
   return (
-    <div className={cn("flex h-full shrink-0 flex-col border-l border-border/70 bg-card", open ? "w-[264px]" : "w-14")}>
+    <div className="relative flex h-full shrink-0 flex-col border-l border-border/70 bg-card"
+      style={{ width: open ? w : 56 }}>
+      {/* 左缘拖宽把手(容器 overflow-hidden,贴内缘压住边框线;双击回默认宽) */}
+      {open && (
+        <div onPointerDown={onWDown} onDoubleClick={() => setW(DEF_W)} title={t("拖动调宽 · 双击复位")}
+          className={cn("absolute inset-y-0 left-0 z-20 w-2 cursor-col-resize",
+            wDragging ? "bg-primary/40" : "hover:bg-primary/30")} />
+      )}
       <div className={cn("flex h-9 shrink-0 items-center gap-2 border-b border-border/70 px-2", !open && "justify-center px-0")}>
         <button type="button" onClick={() => setOpen(v => !v)} title={t("展开/缩起监控栏")}
           className="flex cursor-pointer items-center p-0 text-base font-semibold text-foreground hover:text-primary">
@@ -463,10 +547,9 @@ export default function MonitorAside() {
         </>}
       </div>
       {!open ? (
-        <MiniRail hosts={hosts} probes={probes} items={items} onToggle={() => setOpen(true)} />
+        <MiniRail hosts={hosts} probes={probes} items={items} />
       ) : (
-        <div className="thin-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2"
-          onClick={e => { if (e.target === e.currentTarget) setOpen(v => !v); }}>   {/* 点空白(非卡片)切换展开/缩起 */}
+        <div className="thin-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
           {Object.keys(hosts).length === 0 && probes.length === 0 && (
             <div className="py-2 text-center text-[13px] text-muted-foreground">
               暂无监控项<br />
