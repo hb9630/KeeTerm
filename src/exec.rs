@@ -11,7 +11,7 @@ use tokio::process::Command;
 pub fn cm_dir() -> std::path::PathBuf {
     let d = dirs::cache_dir()
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_default())
-        .join("term-gateway");
+        .join("keeterm");
     let _ = std::fs::create_dir_all(&d);
     d
 }

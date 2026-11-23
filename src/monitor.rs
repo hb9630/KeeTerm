@@ -56,7 +56,7 @@ pub static MON: OnceLock<Arc<Mutex<Mon>>> = OnceLock::new();
 const HIST: usize = 480;
 
 pub fn mon_path() -> std::path::PathBuf {
-    dirs::config_dir().unwrap_or_default().join("term-gateway").join("mon.toml")
+    dirs::config_dir().unwrap_or_default().join("keeterm").join("mon.toml")
 }
 
 fn load() -> MonFile {

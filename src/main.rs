@@ -1,4 +1,4 @@
-//! term-gateway 0.2 — 独立 Web 终端:local 本机 shell / ssh 目标(~/.ssh/config 即列表),
+//! KeeTerm — 独立 Web 终端:local 本机 shell / ssh 目标(~/.ssh/config 即列表),
 //! 容器挂主机树(docker/podman 自动发现)、tmux 会话(attach/新建/关闭)、exec 化文件浏览。
 //! 单静态二进制(前端内嵌),零服务端安装;auth 可选(--jwt-secret,qweb 式接入)。
 
@@ -37,7 +37,7 @@ struct Args {
     /// 密码文件(内容=纯密码;每次登录现读,改文件即时生效免重启)
     #[arg(long)]
     auth_file: Option<std::path::PathBuf>,
-    /// 目标增强配置路径(默认 ~/.config/term-gateway/targets.toml)
+    /// 目标增强配置路径(默认 ~/.config/keeterm/targets.toml)
     #[arg(long)]
     config: Option<PathBuf>,
     /// ssh config 路径(默认 ~/.ssh/config)
@@ -341,7 +341,7 @@ async fn main() -> Result<()> {
         .route("/api/t/target/{target}/ctn/{ctn}/fs/op", post(fsx::ctn_fs_op))
         .route("/api/t/target/{target}/ctn/{ctn}/fs/save", post(fsx::ctn_fs_save))
         .route("/api/t/ws", get(ws::handler))
-        .route("/api/t/healthz", get(|| async { Json(serde_json::json!({ "ok": true, "app": "term-gateway" })) }))
+        .route("/api/t/healthz", get(|| async { Json(serde_json::json!({ "ok": true, "app": "KeeTerm" })) }))
         .route("/", get(index))
         .route("/{*path}", get(static_path))
         .with_state(shared)
@@ -367,7 +367,7 @@ async fn main() -> Result<()> {
     };
 
     let listener = tokio::net::TcpListener::bind((host.as_str(), port)).await?;
-    eprintln!("[term-gateway] listening on {host}:{port} (targets: ~/.ssh/config + {})", reg.toml_path.display());
+    eprintln!("[KeeTerm] listening on {host}:{port} (targets: ~/.ssh/config + {})", reg.toml_path.display());
     axum::serve(listener, app).await?;
     Ok(())
 }

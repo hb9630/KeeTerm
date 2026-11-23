@@ -44,7 +44,7 @@ impl Auth {
     pub fn token(&self) -> String {
         use sha2::{Digest, Sha256};
         let mut h = Sha256::new();
-        h.update(b"term-gateway-cookie-v1:");
+        h.update(b"keeterm-cookie-v1:");
         h.update(self.current_password().as_bytes());
         hex(&h.finalize())
     }

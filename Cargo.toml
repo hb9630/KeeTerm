@@ -1,5 +1,5 @@
 [package]
-name = "term-gateway"
+name = "keeterm"
 version = "0.2.0"
 edition = "2021"
 description = "Standalone web terminal: local shell or ssh targets from ~/.ssh/config, containers (docker/podman) as tree children, tmux sessions, remote file explorer — one static binary, zero server-side install."

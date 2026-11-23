@@ -1,5 +1,5 @@
 {
-  "name": "term-gateway-web",
+  "name": "keeterm-web",
   "private": true,
   "type": "module",
   "scripts": {

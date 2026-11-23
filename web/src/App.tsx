@@ -1,4 +1,4 @@
-/* term-gateway 工作台:左栏(目标树=local+ssh config+toml 条目,容器挂主机下,CRUD,可缩起)
+/* KeeTerm 工作台:左栏(目标树=local+ssh config+toml 条目,容器挂主机下,CRUD,可缩起)
    → 右键连接(SSH / tmux 会话 / 容器登入)→ tab 条 + 三栏(终端|预览|文件树最右)。
    纯小工具:目标即 ~/.ssh/config(VSCode Remote 哲学),targets.toml 只存增强项。 */
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";

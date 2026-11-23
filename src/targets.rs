@@ -57,7 +57,7 @@ impl Registry {
         Self {
             toml_path: toml_path.unwrap_or_else(|| {
                 dirs::config_dir().unwrap_or_else(|| PathBuf::from("."))
-                    .join("term-gateway")
+                    .join("keeterm")
                     .join("targets.toml")
             }),
             ssh_config: ssh_config

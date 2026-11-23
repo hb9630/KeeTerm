@@ -73,7 +73,7 @@ Just open it in a phone browser (responsive layout):
 
 ```
 $ cargo build --release          # embeds web/dist (frontend: cd web && npm run build)
-$ ./target/release/term-gateway 7697 --auth-file pass.txt
+$ ./target/release/keeterm 7697 --auth-file pass.txt
 ```
 
 - Auth: code-server style single password; editing the password file takes effect immediately
@@ -136,7 +136,7 @@ $ ./target/release/term-gateway 7697 --auth-file pass.txt
 
 ```
 $ cargo build --release          # 自动嵌入 web/dist(前端:cd web && npm run build)
-$ ./target/release/term-gateway 7697 --auth-file pass.txt
+$ ./target/release/keeterm 7697 --auth-file pass.txt
 ```
 
 - auth:code-server 式单密码;改密码文件即时生效(旧会话作废);cookie 由密码派生,重启不掉线

@@ -554,6 +554,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bd1574e617a9a6c1f8f8181bd7e841e1f20e4277607ef28945765188d6284d4"
 
 [[package]]
+name = "keeterm"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64",
+ "clap",
+ "dirs",
+ "futures-util",
+ "libc",
+ "mime_guess",
+ "portable-pty",
+ "rust-embed",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
+ "toml",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1053,27 +1074,6 @@ name = "sync_wrapper"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
-
-[[package]]
-name = "term-gateway"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64",
- "clap",
- "dirs",
- "futures-util",
- "libc",
- "mime_guess",
- "portable-pty",
- "rust-embed",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tokio",
- "toml",
-]
 
 [[package]]
 name = "termios"
