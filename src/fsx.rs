@@ -261,7 +261,14 @@ pub async fn fs_op_inner(reg: &Arc<Registry>, auth: &Arc<Auth>, headers: &Header
         "rename" => format!("mv -- {} {}", shq(&req.path), shq(&req.to)),
         "delete" => format!("rm -rf -- {}", shq(&req.path)),
         "copy" => format!("cp -a -- {} {}", shq(&req.path), shq(&req.to)),
-        "upload" => format!("echo {} | base64 -d > {}", shq(&req.data), shq(&format!("{}/{}", base, req.name))),
+        "upload" => {
+            // 分块写(整文件塞命令行会 E2BIG;复用 save 的 write_chunks)
+            let dest = format!("{}/{}", base, req.name);
+            return match write_chunks(&entry, &req.ctn, &req.engine, &dest, &req.data).await {
+                Ok(()) => axum::Json(serde_json::json!({ "ok": true })).into_response(),
+                Err(e) => axum::Json(serde_json::json!({ "error": e })).into_response(),
+            };
+        }
         _ => return (StatusCode::BAD_REQUEST, format!("未知操作 {}", req.op)).into_response(),
     };
     match run_on(&entry, &req.ctn, &req.engine, &cmd, 300).await {
@@ -278,6 +285,34 @@ pub struct SaveIn {
     pub content: String,
 }
 
+/// 分块写远端文件(base64 块追加再解码落位):save 与 upload 共用,
+/// 单参数不超 MAX_ARG_STRLEN(整文件塞命令行会 E2BIG)
+async fn write_chunks(entry: &Entry, ctn: &str, engine: &str, path: &str, b64: &str) -> Result<(), String> {
+    let tmp = format!("/tmp/tgw-save-{}-{:x}", std::process::id(),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos());
+    let mut first = true;
+    for chunk in b64.as_bytes().chunks(96_000) {
+        let c = std::str::from_utf8(chunk).unwrap_or("");
+        let redirect = if first { ">" } else { ">>" };
+        let op = format!("printf '%s' {} {redirect} {}", shq(c), shq(&tmp));
+        match run_on(entry, ctn, engine, &op, 60).await {
+            Ok((0, _)) => {}
+            Ok((_, out)) => {
+                let _ = run_on(entry, ctn, engine, &format!("rm -f {}", shq(&tmp)), 10).await;
+                return Err(format!("写入失败:{}", String::from_utf8_lossy(&out).trim()));
+            }
+            Err(e) => return Err(format!("写入失败:{e}")),
+        }
+        first = false;
+    }
+    let fin = format!("base64 -d {} > {} && rm -f {}", shq(&tmp), shq(path), shq(&tmp));
+    match run_on(entry, ctn, engine, &fin, 60).await {
+        Ok((0, _)) => Ok(()),
+        Ok((_, out)) => Err(format!("保存失败:{}", String::from_utf8_lossy(&out).trim())),
+        Err(e) => Err(format!("保存失败:{e}")),
+    }
+}
+
 pub async fn fs_save_inner(reg: &Arc<Registry>, auth: &Arc<Auth>, headers: &HeaderMap, target: &str, ctn: &str, engine: &str, body: SaveIn) -> Response {
     need_auth!(auth, headers);
     let Some(entry) = reg.resolve(target) else { return StatusCode::NOT_FOUND.into_response() };
@@ -286,28 +321,9 @@ pub async fn fs_save_inner(reg: &Arc<Registry>, auth: &Arc<Auth>, headers: &Head
     }
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD.encode(body.content.as_bytes());
-    let tmp = format!("/tmp/tgw-save-{}-{:x}", std::process::id(),
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos());
-    let mut first = true;
-    for chunk in b64.as_bytes().chunks(96_000) {
-        let c = std::str::from_utf8(chunk).unwrap_or("");
-        let redirect = if first { ">" } else { ">>" };
-        let op = format!("printf '%s' {} {redirect} {}", shq(c), shq(&tmp));
-        match run_on(&entry, ctn, engine, &op, 60).await {
-            Ok((0, _)) => {}
-            Ok((_, out)) => {
-                let _ = run_on(&entry, ctn, engine, &format!("rm -f {}", shq(&tmp)), 10).await;
-                return err(format!("写入失败:{}", String::from_utf8_lossy(&out).trim()));
-            }
-            Err(e) => return err(format!("写入失败:{e}")),
-        }
-        first = false;
-    }
-    let fin = format!("base64 -d {} > {} && rm -f {}", shq(&tmp), shq(&body.path), shq(&tmp));
-    match run_on(&entry, ctn, engine, &fin, 60).await {
-        Ok((0, _)) => axum::Json(serde_json::json!({ "ok": true })).into_response(),
-        Ok((_, out)) => err(format!("保存失败:{}", String::from_utf8_lossy(&out).trim())),
-        Err(e) => err(format!("保存失败:{e}")),
+    match write_chunks(&entry, ctn, engine, &body.path, &b64).await {
+        Ok(()) => axum::Json(serde_json::json!({ "ok": true })).into_response(),
+        Err(e) => err(e),
     }
 }
 
