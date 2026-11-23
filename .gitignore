@@ -1,0 +1,8 @@
+/target
+
+# 凭据不入库
+pass.txt
+run.env
+
+# 前端构建产物不入库(本地保留供 rust-embed 嵌入)
+web/dist/

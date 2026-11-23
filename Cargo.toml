@@ -1,0 +1,33 @@
+[package]
+name = "term-gateway"
+version = "0.2.0"
+edition = "2021"
+description = "Standalone web terminal: local shell or ssh targets from ~/.ssh/config, containers (docker/podman) as tree children, tmux sessions, remote file explorer — one static binary, zero server-side install."
+license = "MIT"
+repository = "https://github.com/hb9630/KeeTerm"
+keywords = ["terminal", "ssh", "web", "pty", "tmux"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "net", "sync", "io-util", "signal", "time", "fs"] }
+portable-pty = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures-util = "0.3"
+toml = "0.8"
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"
+dirs = "5"
+rust-embed = "8"
+mime_guess = "2"
+
+sha2 = "0.10"
+base64 = "0.22"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[profile.release]
+lto = true
+strip = true
