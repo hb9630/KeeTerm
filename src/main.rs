@@ -344,7 +344,9 @@ async fn main() -> Result<()> {
         .route("/api/t/healthz", get(|| async { Json(serde_json::json!({ "ok": true, "app": "term-gateway" })) }))
         .route("/", get(index))
         .route("/{*path}", get(static_path))
-        .with_state(shared);
+        .with_state(shared)
+        // 文件上传走 JSON(base64),默认 2MB 限制放开到 700MB(与 nginx 512m×1.33 膨胀匹配)
+        .layer(axum::extract::DefaultBodyLimit::max(700_000_000));
 
     let app = app.layer(axum::middleware::from_fn_with_state(
         auth.clone(),
