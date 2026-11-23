@@ -4,6 +4,10 @@ English | [中文](README.md)
 
 **Standalone web terminal · your `~/.ssh/config` is the host list · containers / tmux / file workbench.**
 
+![Terminal + file workbench](screen1.png)
+
+![Split panes (nestable horizontal/vertical)](screen2.png)
+
 A single Rust binary with the frontend embedded — the VSCode Remote philosophy:
 the ssh config you already have *is* the target registry. Zero server-side setup,
 zero protocol libraries (pure ssh-client orchestration).
