@@ -9,8 +9,8 @@ import {
   FilePlus2, FolderPlus, Upload, Download, Pencil, Trash2, Scissors, Copy, ClipboardCopy, ClipboardPaste, X, Eye, EyeOff,
   Home, CornerDownRight,
 } from "lucide-react";
-import { cn, toast } from "./lib";
-/* ConfirmDialog → window.confirm(纯小工具简化) */
+import { cn, toast as _toast } from "./lib";
+/* ConfirmDialog → window.confirm(纯小工具简化);对象风格适配 lib 的 toast(msg, err) */
 const toast = { success: (m: string) => _toast(m), error: (m: string) => _toast(m, true) };
 
 export interface TreeNode {
