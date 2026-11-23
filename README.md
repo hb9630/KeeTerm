@@ -74,4 +74,4 @@ $ ./target/release/term-gateway 7697 --auth-file pass.txt
 
 ---
 
-作者 huangbin([hb9630](https://github.com/hb9630)) · 启智联新科技
+[https://github.com/hb9630/KeeTerm](https://github.com/hb9630/KeeTerm) · 联系:[h9630@qq.com](mailto:h9630@qq.com)

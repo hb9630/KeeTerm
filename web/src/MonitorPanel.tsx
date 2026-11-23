@@ -232,9 +232,9 @@ function ProbeCard({ p }: { p: Probe }) {
 }
 
 /** 收起态窄轨:一主机一组小格(CPU/内存/GPU/显存,有则显);探针一格=bar.pct/– */
-function MiniRail({ hosts, probes, onToggle }: { hosts: Hosts | null; probes: Probe[]; onToggle?: () => void }) {
-  const keys = [...Object.keys(hosts || {}), ...(hosts ? probes.map((p) => `probe:${p.name}`) : [])];
-  const byKey = useMemo(() => new Map(probes.map((p) => [`probe:${p.name}`, p])), [probes]);
+function MiniRail({ hosts, probes, items, onToggle }: { hosts: Hosts | null; probes: Probe[]; items: string[]; onToggle?: () => void }) {
+  // 顺序=父级 items(用户拖拽序,probe:url 键空间与展开态一致)
+  const byKey = useMemo(() => new Map(probes.map((p) => [probeKey(p), p])), [probes]);
   const vmemPct = (v: string) => {
     const m = /(\d+(?:\.\d+)?)\s*(?:MiB|GiB)\s*\/\s*(\d+(?:\.\d+)?)\s*(?:MiB|GiB)/.exec(v);
     if (!m) return null;
@@ -253,7 +253,7 @@ function MiniRail({ hosts, probes, onToggle }: { hosts: Hosts | null; probes: Pr
   return (
     <div onClick={onToggle}
       className="thin-scroll flex max-h-full min-h-full cursor-pointer flex-col items-center gap-2.5 overflow-y-auto py-2.5">
-      {keys.map((k) => {
+      {items.map((k) => {
         if (byKey.has(k)) {
           const p = byKey.get(k)!;
           // 无 bar.pct 时 sum "X/Y" 直显当前数 X(keeper MiniRail 同款);都没有显在线状态
@@ -262,7 +262,7 @@ function MiniRail({ hosts, probes, onToggle }: { hosts: Hosts | null; probes: Pr
             || (p.data ? Object.entries(p.data as Record<string, unknown>).slice(0, 6).map(([kk, vv]) => `${kk} ${JSON.stringify(vv)}`).join(" · ") : "");
           return (
             <div key={k} className="flex w-full flex-col items-center gap-2.5">
-              {k !== keys[0] && <span className="w-6 border-t border-border/60" aria-hidden />}
+              {k !== items[0] && <span className="w-6 border-t border-border/60" aria-hidden />}
               <div className="max-w-full truncate px-0.5 text-[9px] leading-none text-muted-foreground/70">{p.name}</div>
               <Cell label={m ? "当前" : "状态"} pct={p.data?.bar?.pct == null ? null : Math.round(p.data.bar.pct)} raw={m ? m[1] : (p.online ? "√" : "–")}
                 color={p.online ? "text-emerald-500" : undefined}
@@ -287,7 +287,7 @@ function MiniRail({ hosts, probes, onToggle }: { hosts: Hosts | null; probes: Pr
         const vm = online && gpu ? vmemPct(gpu.v) : null;
         return (
           <div key={k} className="flex w-full flex-col items-center gap-2.5">
-            {k !== keys[0] && <span className="w-6 border-t border-border/60" aria-hidden />}
+            {k !== items[0] && <span className="w-6 border-t border-border/60" aria-hidden />}
             <div className={`max-w-full truncate px-0.5 text-[9px] leading-none ${online ? "text-muted-foreground/70" : "text-muted-foreground/40"}`}>{k}</div>
             {cpu && cellOf("CPU", cpu.v)}
             {mem && cellOf("内存", mem.v)}
@@ -463,7 +463,7 @@ export default function MonitorAside() {
         </>}
       </div>
       {!open ? (
-        <MiniRail hosts={hosts} probes={probes} onToggle={() => setOpen(true)} />
+        <MiniRail hosts={hosts} probes={probes} items={items} onToggle={() => setOpen(true)} />
       ) : (
         <div className="thin-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2"
           onClick={e => { if (e.target === e.currentTarget) setOpen(v => !v); }}>   {/* 点空白(非卡片)切换展开/缩起 */}

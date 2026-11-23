@@ -78,4 +78,4 @@ $ ./target/release/term-gateway 7697 --auth-file pass.txt
 
 ---
 
-Author huangbin ([hb9630](https://github.com/hb9630)) · QKeeper Tech
+[https://github.com/hb9630/KeeTerm](https://github.com/hb9630/KeeTerm) · Contact: [h9630@qq.com](mailto:h9630@qq.com)

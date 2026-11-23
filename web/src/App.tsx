@@ -763,9 +763,9 @@ export default function App() {
               <Monitor className="h-10 w-10 text-primary" />
               <span className="text-lg font-semibold tracking-wide">KeeTerm</span>
               <p className="text-[13px] text-muted-foreground">独立 Web 终端 · ssh config 即目标 · 容器 / tmux / 文件工作站</p>
-              <p className="text-[11px] text-muted-foreground/70">作者 huangbin(hb9630)</p>
               <a href="https://github.com/hb9630/KeeTerm" target="_blank" rel="noreferrer"
-                className="mt-1 text-[13px] text-primary hover:underline">使用手册 · github.com/hb9630/KeeTerm</a>
+                className="mt-1 text-[13px] text-primary hover:underline">https://github.com/hb9630/KeeTerm</a>
+              <p className="text-[12px] text-muted-foreground">联系:<a href="mailto:h9630@qq.com" className="text-primary hover:underline">h9630@qq.com</a></p>
             </div>
           </div>
         </div>
