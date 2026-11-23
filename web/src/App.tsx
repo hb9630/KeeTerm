@@ -480,30 +480,30 @@ export default function App() {
   }, []);
 
   // 目标树渲染:左栏与 tab 头下拉选择器共用一份;展开状态各自独立(下拉里展开不影响左栏)
-  const renderTree = (tree: typeof open, g: typeof grp, tog: (n: string) => void, eng: (n: string) => string, setG: typeof setGrp) => shown.map(t => {
-    const node = tree[t.name];
+  const renderTree = (tree: typeof open, g: typeof grp, tog: (n: string) => void, eng: (n: string) => string, setG: typeof setGrp) => shown.map(hst => {
+    const node = tree[hst.name];
     const cts = node === "loading" ? node : node?.list;
-    const st = alive[t.name] == null ? "text-muted-foreground" : alive[t.name] ? "text-emerald-500" : "text-muted-foreground/35";
+    const st = alive[hst.name] == null ? "text-muted-foreground" : alive[hst.name] ? "text-emerald-500" : "text-muted-foreground/35";
     return (
-      <div key={t.name}>
+      <div key={hst.name}>
         <div className="group flex items-center">
-          <button onClick={() => tog(t.name)} title="展开/收起容器"
+          <button onClick={() => tog(hst.name)} title="展开/收起容器"
             className="flex h-7 w-6 shrink-0 items-center justify-center text-muted-foreground/70 hover:text-foreground">
             {cts === "loading"
               ? <Loader2 className="h-3 w-3 animate-spin" />
               : <ChevronRight className={cn("h-4 w-4 transition-transform", Array.isArray(cts) && "rotate-90")} />}
           </button>
-          <button onClick={() => tog(t.name)}
-            onContextMenu={e => hostMenu(e, t)}
-            title={`${t.name}${t.addr ? ` · ${t.addr}` : ""}${t.note ? ` · ${t.note}` : ""}(左键展开容器,右键选择连接方式)`}
+          <button onClick={() => tog(hst.name)}
+            onContextMenu={e => hostMenu(e, hst)}
+            title={`${hst.name}${hst.addr ? ` · ${hst.addr}` : ""}${hst.note ? ` · ${hst.note}` : ""}(左键展开容器,右键选择连接方式)`}
             className="flex min-w-0 flex-1 items-center gap-2 rounded-lg py-1.5 pl-1 pr-1 text-left transition-colors hover:bg-muted">
-            {t.kind === "local"
+            {hst.kind === "local"
               ? <HardDrive className={cn("h-4 w-4 shrink-0", st)} />
               : <Server className={cn("h-4 w-4 shrink-0", st)} />}
-            <span className="min-w-0 flex-1 truncate">{t.name}</span>
-            {t.source === "toml" && (
+            <span className="min-w-0 flex-1 truncate">{hst.name}</span>
+            {hst.source === "toml" && (
               <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
-                <button title="编辑" onClick={e => { e.stopPropagation(); setEdit({ name: t.name, addr: t.addr === "local" ? "" : t.addr, port: t.port || "", note: t.note, isNew: false, mode: "addr", cmd: "" }); }}
+                <button title="编辑" onClick={e => { e.stopPropagation(); setEdit({ name: hst.name, addr: hst.addr === "local" ? "" : hst.addr, port: t.port || "", note: hst.note, isNew: false, mode: "addr", cmd: "" }); }}
                   className="rounded p-0.5 text-muted-foreground/60 hover:text-foreground"><Pencil className="h-3 w-3" /></button>
                 <button title="删除" onClick={e => { e.stopPropagation(); delTarget(t); }}
                   className="rounded p-0.5 text-muted-foreground/60 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
@@ -514,10 +514,10 @@ export default function App() {
         {Array.isArray(cts) && (() => {
           const ctnBtn = (c: Ctn, pl: string) => (
             <button key={c.name}
-              onContextMenu={e => hostMenu(e, t, c.name)}
-              title={`${eng(t.name) === "podman" ? "podman" : "docker"} · ${c.image}${c.running ? "" : "(未运行)"} · 右键登入`}
+              onContextMenu={e => hostMenu(e, hst, c.name)}
+              title={`${eng(hst.name) === "podman" ? "podman" : "docker"} · ${c.image}${c.running ? "" : "(未运行)"} · 右键登入`}
               className={cn("flex w-full items-center gap-2 rounded-lg py-1.5 pr-2 text-left transition-colors hover:bg-muted", pl)}>
-              {eng(t.name) === "podman"
+              {eng(hst.name) === "podman"
                 ? <Box className="h-4 w-4 shrink-0 text-muted-foreground" />
                 : <Container className="h-4 w-4 shrink-0 text-muted-foreground" />}
               <span className="min-w-0 flex-1 truncate">{c.name}</span>
@@ -529,7 +529,7 @@ export default function App() {
           return (<>
             {groups.map(p => {
               const members = cts.filter(c => c.compose === p);
-              const gk = `${t.name}::${p}`, gOpen = g[gk] !== false;
+              const gk = `${hst.name}::${p}`, gOpen = g[gk] !== false;
               return (
                 <div key={p}>
                   <button onClick={() => setG(v => ({ ...v, [gk]: !gOpen }))}
@@ -562,14 +562,14 @@ export default function App() {
       {icon}<span className="min-w-0 flex-1 truncate">{label}</span>
     </button>
   );
-  const sessItem = (t: Target, ctn: string | undefined, sess: string) => (
+  const sessItem = (tg: Target, ctn: string | undefined, sess: string) => (
     <div className="flex items-center">
-      <button onClick={e => { setCtx(null); openConn({ target: t.name, ctn, engine: ctn ? engOf(t.name) || undefined : undefined, session: sess }, e); }}
+      <button onClick={e => { setCtx(null); openConn({ target: tg.name, ctn, engine: ctn ? engOf(tg.name) || undefined : undefined, session: sess }, e); }}
         className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-[13px] hover:bg-accent">
         <SquareTerminal className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate">{sess}</span>
       </button>
-      <button title={t("关闭会话")} onClick={() => killSess(t, ctn, sess)}
+      <button title={t("关闭会话")} onClick={() => killSess(tg, ctn, sess)}
         className="mr-1 shrink-0 cursor-pointer rounded p-1 text-muted-foreground/60 hover:bg-accent hover:text-red-500">
         <X className="h-3 w-3" />
       </button>
@@ -583,9 +583,9 @@ export default function App() {
         <div className="flex h-9 shrink-0 items-stretch border-b border-border/70 bg-card">
           {/* tab 区:横向滑动(手机一屏放不下几个),+ / ∨ 固定右侧不随滚 */}
           <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {tabs.map((t, idx) => {
-            const k = tkey(t);
-            const name = targets?.find(x => x.name === t.target)?.name || t.target;
+          {tabs.map((tb, idx) => {
+            const k = tkey(tb);
+            const name = targets?.find(x => x.name === tb.target)?.name || tb.target;
             const isDragged = drag?.k === k;
             const shift = (() => {
               if (!drag || isDragged) return 0;
@@ -610,19 +610,19 @@ export default function App() {
                   : shift ? { transform: `translateX(${shift}px)`, transition: "transform 150ms" } : undefined}
                 className={cn("group/tab flex shrink-0 cursor-pointer touch-pan-x select-none items-center gap-1.5 border-r border-border/60 px-3 text-[13px]",
                   active === k ? "bg-background font-medium" : "text-muted-foreground hover:bg-accent/50")}
-                title={`${name}${t.ctn ? ` · ${t.ctn}` : ""}${t.session ? ` · tmux:${t.session}` : ""}`}>
+                title={`${name}${tb.ctn ? ` · ${tb.ctn}` : ""}${tb.session ? ` · tmux:${tb.session}` : ""}`}>
                 <span className="flex max-w-52 items-center gap-1 truncate">
                   {active !== k && (live[k]?.idle
                     ? <span title={t("已静默(干完/等确认)")} className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-500" />
                     : live[k]?.busy
                       ? <span title={t("运行中")} className="h-1.5 w-1.5 shrink-0 animate-spin rounded-full border-2 border-red-500/70 border-t-transparent" />
                       : null)}
-                  {t.ctn ?? name}
-                  {t.session && <><span className="text-muted-foreground/60">·</span><span className="truncate text-muted-foreground">{t.session}</span></>}
+                  {tb.ctn ?? name}
+                  {tb.session && <><span className="text-muted-foreground/60">·</span><span className="truncate text-muted-foreground">{tb.session}</span></>}
                 </span>
-                {t.engine && t.engine !== "auto" && <span className="rounded bg-muted px-1 text-[10px] leading-4 text-muted-foreground" title={`引擎:${t.engine}`}>{t.engine === "docker" ? "dk" : "pm"}</span>}
-                {t.session && <span className="rounded bg-muted px-1 text-[10px] font-semibold leading-4 text-muted-foreground" title="tmux 会话">T</span>}
-                {t.root && <span className="rounded bg-muted px-1 text-[10px] leading-4 text-muted-foreground" title={`分屏(${leafCount(t.root)} 面板)`}>⊞{leafCount(t.root)}</span>}
+                {tb.engine && tb.engine !== "auto" && <span className="rounded bg-muted px-1 text-[10px] leading-4 text-muted-foreground" title={`引擎:${tb.engine}`}>{tb.engine === "docker" ? "dk" : "pm"}</span>}
+                {tb.session && <span className="rounded bg-muted px-1 text-[10px] font-semibold leading-4 text-muted-foreground" title="tmux 会话">T</span>}
+                {tb.root && <span className="rounded bg-muted px-1 text-[10px] leading-4 text-muted-foreground" title={`分屏(${leafCount(tb.root)} 面板)`}>⊞{leafCount(tb.root)}</span>}
                 <button className="rounded p-0.5 opacity-30 hover:bg-accent hover:opacity-100"
                   onClick={e => { e.stopPropagation(); closeTab(k); }}
                   title={t("关闭(tmux 会话仍在目标机运行)")}>
