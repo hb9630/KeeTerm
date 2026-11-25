@@ -345,13 +345,30 @@ function readOrder(): string[] {
   try { return JSON.parse(localStorage.getItem("tg_mon_order") || "[]") || []; } catch { return []; }
 }
 
-/** 右侧监控栏:头部 Activity 开关+时钟+配置;收起=窄轨,展开=卡片列(左缘把手可拖宽,可拖拽排序) */
-export default function MonitorAside() {
-  const [open, setOpen] = useState(() => {
-    try { const v = localStorage.getItem("tg_mon_open"); if (v != null) return v === "1"; } catch { /* */ }
-    return true;
-  });
-  useEffect(() => { localStorage.setItem("tg_mon_open", open ? "1" : "0"); }, [open]);
+/** 监控栏三态:open=卡片列 / mini=56px 窄轨 / hidden=整栏不渲染;
+ *  桌面三态循环切换,手机(<768)两态(无窄轨,open↔hidden) */
+export type MonMode = "open" | "mini" | "hidden";
+
+/** 初始态:读 tg_mon_mode 存档;旧 tg_mon_open("1"/"0")迁移;无档手机默认 hidden、桌面 open */
+export function readMonMode(): MonMode {
+  const mobile = window.innerWidth < 768;
+  try {
+    const v = localStorage.getItem("tg_mon_mode");
+    if (v === "open" || v === "mini" || v === "hidden") {
+      if (mobile && v === "mini") return "hidden";   // 手机无缩起态
+      return v;
+    }
+    const old = localStorage.getItem("tg_mon_open");
+    if (old === "1") return "open";
+    if (old === "0") return mobile ? "hidden" : "mini";
+  } catch { /* */ }
+  return mobile ? "hidden" : "open";
+}
+
+/** 右侧监控栏:头部 Activity 开关+时钟+配置;展开=卡片列(左缘把手可拖宽,可拖拽排序)。
+ *  mode 由 App 持有(hidden 时 tab 条心电图钮即入口) */
+export default function MonitorAside({ mode, onMode }: { mode: MonMode; onMode: (m: MonMode) => void }) {
+  useEffect(() => { localStorage.setItem("tg_mon_mode", mode); }, [mode]);
   // 拖宽:左缘把手,宽度连续变化并存档(双击把手回到默认)
   const MIN_W = 200, MAX_W = 520, DEF_W = 264;
   const [w, setW] = useState(() => {
@@ -359,6 +376,16 @@ export default function MonitorAside() {
     return DEF_W;
   });
   useEffect(() => { localStorage.setItem("tg_mon_w", String(w)); }, [w]);
+  // 窄屏截宽:展开宽不越过视口(桌面存档的大宽度在手机上截到 vw-64,给终端区留底)
+  const [vw, setVw] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const r = () => setVw(window.innerWidth);
+    window.addEventListener("resize", r);
+    return () => window.removeEventListener("resize", r);
+  }, []);
+  // 头部 Activity 循环:桌面 open→mini→hidden→open;手机 open↔hidden(缩起即隐藏,无窄轨态)
+  const isMobile = vw < 768;
+  const cycle = () => onMode(mode === "open" ? (isMobile ? "hidden" : "mini") : mode === "mini" ? "hidden" : "open");
   const wDrag = useRef<{ id: number; startX: number; startW: number } | null>(null);
   const [wDragging, setWDragging] = useState(false);
   const onWDown = (e: React.PointerEvent) => {
@@ -523,21 +550,33 @@ export default function MonitorAside() {
     return () => document.removeEventListener("touchmove", tm);
   }, []);
 
+  // 隐藏(手机含缩起)=零占位,只留标题栏行的心电图图标:悬浮贴右上,与小电脑对称,点击展开
+  if (mode === "hidden" || (isMobile && mode === "mini")) {
+    return (
+      <div className="relative h-full w-0 shrink-0">
+        <button type="button" onClick={cycle} title={t("展开监控栏")}
+          className="absolute right-0 top-0 flex h-9 w-10 cursor-pointer items-center justify-center border-b border-border/70 bg-card text-base font-semibold text-foreground hover:text-primary">
+          <Activity className="inline size-4" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="relative flex h-full shrink-0 flex-col border-l border-border/70 bg-card"
-      style={{ width: open ? w : 56 }}>
+      style={{ width: mode === "open" ? Math.min(w, Math.max(120, vw - 64)) : 56 }}>
       {/* 左缘拖宽把手(容器 overflow-hidden,贴内缘压住边框线;双击回默认宽) */}
-      {open && (
+      {mode === "open" && (
         <div onPointerDown={onWDown} onDoubleClick={() => setW(DEF_W)} title={t("拖动调宽 · 双击复位")}
           className={cn("absolute inset-y-0 left-0 z-20 w-2 cursor-col-resize",
             wDragging ? "bg-primary/40" : "hover:bg-primary/30")} />
       )}
-      <div className={cn("flex h-9 shrink-0 items-center gap-2 border-b border-border/70 px-2", !open && "justify-center px-0")}>
-        <button type="button" onClick={() => setOpen(v => !v)} title={t("展开/缩起监控栏")}
-          className="flex cursor-pointer items-center p-0 text-base font-semibold text-foreground hover:text-primary">
+      <div className={cn("flex h-9 shrink-0 items-center gap-2 border-b border-border/70 px-2", mode !== "open" && "justify-center px-0")}>
+        <button type="button" onClick={cycle} title={t("循环:展开 → 缩起 → 隐藏")}
+          className="flex cursor-pointer items-center rounded p-1.5 text-base font-semibold text-foreground hover:text-primary">
           <Activity className="inline size-4" />
         </button>
-        {open && <>
+        {mode === "open" && <>
           <span className="text-[13px] font-semibold">{t("监控")}</span>
           <LiveClock />
           <button onClick={openCfg} title={t("配置监控项(主机 / URL 探针)")}
@@ -546,7 +585,7 @@ export default function MonitorAside() {
           </button>
         </>}
       </div>
-      {!open ? (
+      {mode !== "open" ? (
         <MiniRail hosts={hosts} probes={probes} items={items} />
       ) : (
         <div className="thin-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">

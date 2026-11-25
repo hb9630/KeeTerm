@@ -34,12 +34,13 @@ const parentOf = (p: string) => p.split("/").slice(0, -1).join("/") || "/";
 const fmtSize = (n?: number) =>
   n == null ? "" : n >= 1048576 ? (n / 1048576).toFixed(1) + "M" : n >= 1024 ? Math.round(n / 1024) + "K" : n + "B";
 
-const dl = async (url: string, name: string) => {
-  const r = await fetch(url, { headers: authHeaders() });
-  if (!r.ok) { toast.error("下载失败"); return; }
-  const u = URL.createObjectURL(await r.blob());
-  const a = document.createElement("a"); a.href = u; a.download = name; a.click();
-  setTimeout(() => URL.revokeObjectURL(u), 5000);
+/** 原生下载:直接 a.href=url(同源 cookie 自动带)→浏览器下载栈接管——
+ *  有进度条可取消不占 JS 内存;旧 fetch→blob 方案大文件全量进内存才触发保存,
+ *  期间无任何反馈,连点还占满连接像"拥塞"。文件名由后端 attachment 头(UTF-8'')给 */
+const dl = (url: string) => {
+  const a = document.createElement("a");
+  a.href = url;
+  document.body.appendChild(a); a.click(); a.remove();
 };
 const toB64 = (f: File) => new Promise<string>((res, rej) => {
   const r = new FileReader();
@@ -427,7 +428,7 @@ export default function Explorer({
 
   const download = (n: TreeNode) => {
     // 目录走 tar.gz 打包流,文件单下
-    dl(`${apiBase}/download?path=${encodeURIComponent(n.path)}${n.dir ? "&tar=1" : ""}`, n.dir ? `${n.name}.tar.gz` : n.name);
+    dl(`${apiBase}/download?path=${encodeURIComponent(n.path)}${n.dir ? "&tar=1" : ""}`);
   };
   // 删除确认（shadcn 模态，不再用原生 confirm）：单项 / 多选共用
   // 剪贴板（cut/copy → paste，Windows 资源管理器语义）：cut = 粘贴时 rename 移动

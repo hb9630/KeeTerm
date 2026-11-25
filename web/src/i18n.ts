@@ -53,6 +53,8 @@ const EN: Record<string, string> = {
   // 监控栏
   "监控": "Monitor",
   "展开/缩起监控栏": "Toggle monitor panel",
+  "展开监控栏": "Open monitor panel",
+  "循环:展开 → 缩起 → 隐藏": "Cycle: open → mini → hidden",
   "暂无监控项": "No monitors yet",
   "配置监控项(主机 / URL 探针)": "Configure monitors (hosts / URL probes)",
   "主机(采集 CPU/内存/存储/GPU)": "Hosts (CPU/mem/disk/GPU)",
@@ -72,6 +74,11 @@ const EN: Record<string, string> = {
   // 关于
   "独立 Web 终端 · ssh config 即目标 · 容器 / tmux / 文件工作站": "Standalone web terminal · ssh config is the host list · containers / tmux / file workbench",
   "使用手册 · github.com/hb9630/KeeTerm": "Manual · github.com/hb9630/KeeTerm",
+  // 图片/svg 预览缩放
+  "滚轮缩放 · 拖拽平移": "Wheel to zoom · drag to pan",
+  "缩小": "Zoom out",
+  "放大": "Zoom in",
+  "还原 100%": "Reset 100%",
 };
 
 let lang: "zh" | "en" = (() => {

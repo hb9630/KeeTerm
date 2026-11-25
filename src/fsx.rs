@@ -187,7 +187,7 @@ pub async fn fs_download_inner(reg: &Arc<Registry>, auth: &Arc<Auth>, headers: &
         let parent = if parent.is_empty() { "/" } else { parent };
         (format!("tar czf - -C {} {}", shq(parent), shq(&name)), format!("{name}.tar.gz"), 600, Some("application/gzip".to_string()))
     } else {
-        (format!("cat {}", shq(&q.path)), q.path.rsplit('/').next().unwrap_or("file").to_string(), 120, None)
+        (format!("cat {}", shq(&q.path)), q.path.rsplit('/').next().unwrap_or("file").to_string(), 600, None)
     };
     match run_on(&entry, ctn, engine, &cmd, timeout).await {
         Ok((0, out)) => {
@@ -206,6 +206,51 @@ pub async fn fs_download_inner(reg: &Arc<Registry>, auth: &Arc<Auth>, headers: &
         Ok((_, out)) => err(format!("读取失败:{}", String::from_utf8_lossy(&out).trim())),
         Err(e) => err(format!("读取失败:{e}")),
     }
+}
+
+// ---------- POST /api/t/fs/stat(预览自动刷新探针:批量取 mtime+size,单次 exec) ----------
+#[derive(Deserialize)]
+pub struct StatIn {
+    pub paths: Vec<String>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn fs_stat_inner(reg: &Arc<Registry>, auth: &Arc<Auth>, headers: &HeaderMap, target: &str, ctn: &str, engine: &str, body: StatIn) -> Response {
+    need_auth!(auth, headers);
+    let Some(entry) = reg.resolve(target) else { return StatusCode::NOT_FOUND.into_response() };
+    if !exec::fs_unix(&entry) {
+        return err("Windows 本机暂不支持文件浏览");
+    }
+    let paths: Vec<&String> = body.paths.iter().filter(|p| !p.is_empty() && !p.contains("..")).take(64).collect();
+    if paths.is_empty() {
+        return axum::Json(serde_json::json!({ "stats": {} })).into_response();
+    }
+    let cmd = format!("stat -c '%Y|%s|%n' -- {}", paths.iter().map(|p| shq(p)).collect::<Vec<_>>().join(" "));
+    match run_on(&entry, ctn, engine, &cmd, 20).await {
+        // 部分文件消失时 stat 退出码非 0,但 stdout 仍有幸存行:只按行解析不看成败
+        Ok((_, out)) => {
+            let mut stats = serde_json::Map::new();
+            for ln in String::from_utf8_lossy(&out).lines() {
+                let mut it = ln.splitn(3, '|');
+                if let (Some(m), Some(s), Some(n)) = (it.next(), it.next(), it.next()) {
+                    if let (Ok(m), Ok(s)) = (m.parse::<u64>(), s.parse::<u64>()) {
+                        stats.insert(n.to_string(), serde_json::json!({ "m": m, "s": s }));
+                    }
+                }
+            }
+            axum::Json(serde_json::json!({ "stats": stats })).into_response()
+        }
+        Err(e) => err(format!("stat 失败:{e}")),
+    }
+}
+
+pub async fn fs_stat(
+    State((reg, auth)): State<(Arc<Registry>, Arc<Auth>)>,
+    headers: HeaderMap,
+    Path(target): Path<String>,
+    axum::Json(body): axum::Json<StatIn>,
+) -> Response {
+    fs_stat_inner(&reg, &auth, &headers, &target, "", "", body).await
 }
 
 fn urlencode(s: &str) -> String {
@@ -395,4 +440,13 @@ pub async fn ctn_fs_save(
 ) -> Response {
     let (t, c, e) = split_ctn(&p);
     fs_save_inner(&reg, &auth, &headers, &t, &c, &e, body).await
+}
+pub async fn ctn_fs_stat(
+    State((reg, auth)): State<(Arc<Registry>, Arc<Auth>)>,
+    headers: HeaderMap,
+    Path(p): Path<CtnPath>,
+    axum::Json(body): axum::Json<StatIn>,
+) -> Response {
+    let (t, c, e) = split_ctn(&p);
+    fs_stat_inner(&reg, &auth, &headers, &t, &c, &e, body).await
 }

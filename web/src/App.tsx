@@ -7,12 +7,12 @@ import { curLang, switchLang, t } from "./i18n";
 import { TermView } from "./TermView";
 import Explorer from "./Explorer";
 import Markdown from "./Markdown";
-import MonitorAside from "./MonitorPanel";
+import MonitorAside, { readMonMode, type MonMode } from "./MonitorPanel";
 // 编辑器内核(CodeMirror core,无语言包)体量不小:懒加载,点"编辑"才拉 chunk,主包不背
 const CodeArea = lazy(() => import("./CodeArea"));
 import {
   Box, ChevronDown, ChevronRight, Container, Download, FolderTree, HardDrive, Info, Languages, Layers, Loader2, Monitor,
-  Pencil, Plus, Server, SquareTerminal, Terminal, Trash2, X,
+  Pencil, Plus, Server, SquareTerminal, Terminal, Trash2, X, ZoomIn, ZoomOut,
 } from "lucide-react";
 
 interface Target {
@@ -20,7 +20,7 @@ interface Target {
   user: string; addr: string; port: string; has_pass: boolean;
 }
 interface Ctn { name: string; image: string; running: boolean; compose?: string }
-type PvTab = { path: string; name: string; kind: string; url?: string; text?: string; err?: boolean; edit?: string };
+type PvTab = { path: string; name: string; kind: string; url?: string; text?: string; err?: boolean; edit?: string; sig?: string };
 interface Tab { target: string; ctn?: string; engine?: string; session?: string; inst?: number; root?: PNode }
 interface Ctx { x: number; y: number; t: Target; ctn?: string; sessions?: "loading" | string[] }
 interface Edit { name: string; addr: string; port: string; note: string; isNew: boolean; mode: "addr" | "cmd"; cmd: string }
@@ -81,8 +81,95 @@ function nextSession(sessions: string[] | undefined): string {
   for (let i = 2; ; i++) { const n = `main-${i}`; if (!used.has(n)) return n; }
 }
 
+/** 图片/svg 预览(自 qweb RawImg 移植):transform 平移/缩放模型——自然尺寸居中,
+ *  translate+scale 自由变换,无滚动条、无边界钳制;滚轮以光标为锚点缩放,拖拽平移。
+ *  blob URL 由预览器管理(自动刷新换 URL 不重挂,缩放/平移视口保持);换文件由 key 归位。 */
+function ImgView({ url, name }: { url: string; name: string }) {
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [grabbing, setGrabbing] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef(zoom); zoomRef.current = zoom;
+  const panRef = useRef(pan); panRef.current = pan;   // 滚轮锚点计算读最新值
+
+  // 滚轮缩放(光标锚定):t' = p - (p-t)·s'/s,保持光标下的图像点不动。
+  // React onWheel 是 passive 的,preventDefault 需原生非 passive 监听
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const h = (e: WheelEvent) => {
+      e.preventDefault();
+      const s0 = zoomRef.current;
+      const s1 = Math.min(32, Math.max(0.25, s0 + (e.deltaY < 0 ? 0.25 : -0.25)));
+      if (s1 === s0) return;
+      const rc = el.getBoundingClientRect();
+      const px = e.clientX - rc.left - rc.width / 2;
+      const py = e.clientY - rc.top - rc.height / 2;
+      const tt = panRef.current;
+      setPan({ x: px - (px - tt.x) * (s1 / s0), y: py - (py - tt.y) * (s1 / s0) });
+      setZoom(s1);
+    };
+    el.addEventListener("wheel", h, { passive: false });
+    return () => el.removeEventListener("wheel", h);
+  }, []);
+
+  // 抓取平移:pointer 事件(鼠标+触屏),拖拽直接改 translate(无边界,任意方向);
+  // 防监听泄漏:buttons 自愈(漏掉 up 时下一次移动即停)+ 窗口 blur 清理 + 幂等 done
+  const startPan = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.preventDefault();
+    let lx = e.clientX, ly = e.clientY;
+    let dead = false;
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerType === "mouse" && !ev.buttons) { done(); return; }
+      // delta 先算成 const:React 延迟执行函数式 updater,在 updater 里读 lx/ly 闭包变量已被改写,恒 0
+      const dx = ev.clientX - lx, dy = ev.clientY - ly;
+      lx = ev.clientX; ly = ev.clientY;
+      setPan(tt => ({ x: tt.x + dx, y: tt.y + dy }));
+    };
+    const up = () => done();
+    const done = () => {
+      if (dead) return; dead = true;
+      setGrabbing(false);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      window.removeEventListener("blur", done);
+    };
+    setGrabbing(true);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    window.addEventListener("blur", done);
+  };
+
+  return (
+    <div className="relative h-full w-full overflow-hidden">
+      <div ref={boxRef} onPointerDown={startPan}
+        title={t("滚轮缩放 · 拖拽平移")}
+        className={cn("flex h-full w-full items-center justify-center overflow-hidden", grabbing ? "cursor-grabbing" : "cursor-grab")}>
+        <img src={url} alt={name} draggable={false}
+          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+          className="max-w-none select-none pointer-events-none" />
+      </div>
+      {/* 缩放条:无滚轮(触屏)也可用;还原=位置+倍率都归位 */}
+      <div className="absolute bottom-2 right-2 z-10 flex items-center gap-0.5 rounded-md border border-border/70 bg-card/90 py-0.5 pl-1 pr-1.5 text-[12px] shadow">
+        <button className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground" title={t("缩小")}
+          onClick={() => setZoom(z => Math.max(0.25, z - 0.25))}><ZoomOut className="h-3.5 w-3.5" /></button>
+        <span className="w-10 text-center tabular-nums text-muted-foreground">{Math.round(zoom * 100)}%</span>
+        <button className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground" title={t("放大")}
+          onClick={() => setZoom(z => Math.min(32, z + 0.25))}><ZoomIn className="h-3.5 w-3.5" /></button>
+        <button className="rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent hover:text-foreground" title={t("还原 100%")}
+          onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>100%</button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [targets, setTargets] = useState<Target[] | null>(null);
+  // 监控栏三态(open/mini/hidden):hidden 时 tab 条心电图钮出现作入口(全端,不只手机)
+  const [monMode, setMonMode] = useState<MonMode>(readMonMode);
   // 左树展开状态:记住展开过的主机名单(刷新恢复=重新拉容器),收起即移出名单
   const [open, setOpen] = useState<Record<string, "loading" | { engine: string; list: Ctn[] }>>(() => {
     try {
@@ -581,6 +668,15 @@ export default function App() {
       {/* tab 条 + 各 tab 三栏(左栏已撤:主机树入口=tab 头下拉 ∨) */}
       <div className="flex h-full min-w-0 flex-1 flex-col">
         <div className="flex h-9 shrink-0 items-stretch border-b border-border/70 bg-card">
+          {/* tab 条最左:小电脑标(与 favicon 同款),纯标识不响应点击,不随 tab 滚动 */}
+          <span className="flex shrink-0 items-center border-r border-border/60 px-2.5" title="KeeTerm">
+            <svg viewBox="0 0 64 64" className="h-5 w-5" aria-hidden>
+              <rect width="64" height="64" rx="12" fill="#2563eb" />
+              <rect x="10" y="12" width="44" height="30" rx="4" fill="none" stroke="#fff" strokeWidth="5" />
+              <line x1="32" y1="42" x2="32" y2="49" stroke="#fff" strokeWidth="5" />
+              <line x1="22" y1="52" x2="42" y2="52" stroke="#fff" strokeWidth="5" strokeLinecap="round" />
+            </svg>
+          </span>
           {/* tab 区:横向滑动(手机一屏放不下几个),+ / ∨ 固定右侧不随滚 */}
           <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map((tb, idx) => {
@@ -683,8 +779,12 @@ export default function App() {
                 onRatio={(sid, r) => setTabs(ts => ts.map(x => tkey(x) === tkey(t) ? { ...x, root: setRatioAt(x.root!, sid, r) } : x))}
                 onPaneBusy={() => markBusy(tkey(t))} onPaneIdle={() => markIdle(tkey(t))} onPaneWake={() => markWake(tkey(t))} />
             : <TermTab key={tkey(t)} conn={t} keyId={tkey(t)} visible={active === tkey(t)} onClose={() => closeTab(tkey(t))}
-                onBusy={() => markBusy(tkey(t))} onIdle={() => markIdle(tkey(t))} onWake={() => markWake(tkey(t))} />)}        </div>
+                onBusy={() => markBusy(tkey(t))} onIdle={() => markIdle(tkey(t))} onWake={() => markWake(tkey(t))} />)}
+        </div>
       </div>
+
+      {/* 右侧监控栏(keeper 移植):通顶,头部在最右(与小电脑对称);三态 open/mini/hidden */}
+      <MonitorAside mode={monMode} onMode={setMonMode} />
 
       {/* tab 头右键:关闭 / 全部关闭 */}
       {tabCtx && (
@@ -729,9 +829,6 @@ export default function App() {
           <div className="px-2 pb-0.5 pt-1 text-[10px] text-muted-foreground/70">{t("Shift+点击=左右拆分 · Alt+点击=上下拆分")}</div>
         </div>
       )}
-
-      {/* 右侧监控栏(keeper 移植):主机资源卡 + URL 探针卡,可收起窄轨 */}
-      <MonitorAside />
 
       {/* ssh config 编辑器 */}
       {sshCfg && (
@@ -938,20 +1035,14 @@ function TermTab({ conn, keyId, visible, onClose, onBusy, onIdle, onWake, pane }
     localStorage.setItem(`tg_pv:${tk}`, JSON.stringify({ tabs: pvTabs.map(t => ({ path: t.path, name: t.name, kind: t.kind })), cur: pvCur }));
   }, [pvTabs, pvCur]);
 
+  // 原生下载(同 Explorer dl):浏览器下载栈接管,大文件有进度可取消;文件名走后端 attachment 头
   const dlRemote = (path: string) => {
-    (async () => {
-      try {
-        const r = await fetch(`${fsPath}/download?path=${enc(path)}`);
-        if (!r.ok) throw new Error(String(r.status));
-        const u = URL.createObjectURL(await r.blob());
-        const a = document.createElement("a");
-        a.href = u; a.download = path.split("/").pop() || "file"; a.click();
-        setTimeout(() => URL.revokeObjectURL(u), 5000);
-      } catch { toast("下载失败", true); }
-    })();
+    const a = document.createElement("a");
+    a.href = `${fsPath}/download?path=${enc(path)}`;
+    document.body.appendChild(a); a.click(); a.remove();
   };
 
-  const fetchPv = (p: string, kind: string) => {
+  const fetchPv = (p: string, kind: string, sig?: string) => {
     (async () => {
       try {
         const r = await fetch(`${fsPath}/download?path=${enc(p)}`);
@@ -960,7 +1051,12 @@ function TermTab({ conn, keyId, visible, onClose, onBusy, onIdle, onWake, pane }
         const body = kind === "text" || kind === "md"
           ? { text: await blob.slice(0, 512 * 1024).text() }
           : { url: URL.createObjectURL(blob) };
-        setPvTabs(ts => ts.map(t => t.path === p ? { ...t, ...body } : t));
+        // 自动刷新会反复生成 blob URL:覆盖前回收旧的
+        setPvTabs(ts => ts.map(t => {
+          if (t.path !== p) return t;
+          if (t.url && body.url && t.url !== body.url) URL.revokeObjectURL(t.url);
+          return { ...t, err: false, ...body, ...(sig ? { sig } : {}) };
+        }));
       } catch { setPvTabs(ts => ts.map(t => t.path === p ? { ...t, err: true } : t)); }
     })();
   };
@@ -969,6 +1065,37 @@ function TermTab({ conn, keyId, visible, onClose, onBusy, onIdle, onWake, pane }
     if (!started) return;
     pvTabs.forEach(t => { if (t.text == null && !t.url && !t.err) fetchPv(t.path, t.kind); });
   }, [started, pvTabs]);
+
+  // 预览自动刷新:5s 轮询 stat(mtime+size 探针),签名变化即重拉;
+  // 编辑中的 tab 跳过(护草稿,退出编辑后若变过会补拉),面板/页面不可见暂停
+  const pvRef = useRef(pvTabs);
+  useEffect(() => { pvRef.current = pvTabs; }, [pvTabs]);
+  useEffect(() => {
+    if (!started) return;
+    const id = setInterval(async () => {
+      if (!visible || document.visibilityState !== "visible") return;
+      const paths = pvRef.current.filter(t => !t.edit).map(t => t.path);
+      if (!paths.length) return;
+      try {
+        const r = await api<{ stats: Record<string, { m: number; s: number }> }>(`${fsPath}/stat`,
+          { method: "POST", body: JSON.stringify({ paths }) });
+        const stats = r.stats || {};
+        for (const t of pvRef.current) {
+          if (t.edit) continue;
+          const e = stats[t.path];
+          if (!e) continue;   // 文件不在(被删/失权限):保持已显示内容
+          const sig = `${e.m}|${e.s}`;
+          if (t.sig === sig) continue;
+          if (!t.sig && !t.err) {   // 首轮只建基线不重拉
+            setPvTabs(ts => ts.map(x => x.path === t.path && !x.sig ? { ...x, sig } : x));
+            continue;
+          }
+          fetchPv(t.path, t.kind, sig);   // 签名变化 / 曾拉取失败重见文件
+        }
+      } catch { /* 探针失败静默,下轮再试 */ }
+    }, 5000);
+    return () => clearInterval(id);
+  }, [started, fsPath, visible]);
 
   const openFile = (p: string) => {
     const name = p.split("/").pop() || p;
@@ -1015,14 +1142,22 @@ function TermTab({ conn, keyId, visible, onClose, onBusy, onIdle, onWake, pane }
     if (t.edit !== t.text && !confirm("放弃未保存的修改?")) return;
     setPvTabs(ts => ts.map(x => x.path === t.path ? { ...x, edit: undefined } : x));
   };
-  const savePv = (t: PvTab) => {
-    if (t.edit == null) return;
-    const content = t.edit;
+  // 参数记 tb:单字母 t 会遮蔽 i18n 的 t(),压缩后报 "V is not a function"(保存实际已成功)
+  const savePv = (tb: PvTab) => {
+    if (tb.edit == null) return;
+    const content = tb.edit;
     (async () => {
       try {
-        await api(`${fsPath}/save`, { method: "POST", body: JSON.stringify({ path: t.path, content }) });
-        setPvTabs(ts => ts.map(x => x.path === t.path ? { ...x, text: content } : x));
+        await api(`${fsPath}/save`, { method: "POST", body: JSON.stringify({ path: tb.path, content }) });
+        setPvTabs(ts => ts.map(x => x.path === tb.path ? { ...x, text: content } : x));
         toast(t("已保存"));
+        // 保存即新基线:轮询不再把本次写回误判为外部变化
+        api<{ stats: Record<string, { m: number; s: number }> }>(`${fsPath}/stat`,
+          { method: "POST", body: JSON.stringify({ paths: [tb.path] }) })
+          .then(r => {
+            const e = r.stats?.[tb.path];
+            if (e) setPvTabs(ts => ts.map(x => x.path === tb.path ? { ...x, sig: `${e.m}|${e.s}` } : x));
+          }).catch(() => {});
       } catch (e) { toast(e instanceof Error ? e.message : String(e), true); }
     })();
   };
@@ -1132,8 +1267,8 @@ function TermTab({ conn, keyId, visible, onClose, onBusy, onIdle, onWake, pane }
                       return `${fsPath}/download?path=${encodeURIComponent("/" + parts.join("/"))}`;
                     }} /></div>
                 : <pre className="h-full w-full overflow-auto p-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap">{cur.text}</pre>)}
-              {cur.url && cur.kind === "image" && <img src={cur.url} alt={cur.name} className="max-h-full max-w-full object-contain" />}
-              {cur.url && cur.kind === "html" && <iframe src={cur.url} sandbox="" title={cur.name} className="h-full w-full border-0 bg-white" />}
+              {cur.url && cur.kind === "image" && <ImgView key={cur.path} url={cur.url} name={cur.name} />}
+              {cur.url && cur.kind === "html" && <iframe src={cur.url} sandbox="allow-scripts" title={cur.name} className="h-full w-full border-0 bg-white" />}
               {cur.url && cur.kind === "pdf" && <iframe src={cur.url} title={cur.name} className="h-full w-full border-0" />}
             </div>
           </div>
