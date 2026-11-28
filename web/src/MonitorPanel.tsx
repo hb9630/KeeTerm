@@ -279,7 +279,7 @@ function MiniRail({ hosts, probes, items }: { hosts: Hosts | null; probes: Probe
   );
   return (
     <div
-      className="thin-scroll flex max-h-full min-h-full flex-col items-center gap-2.5 overflow-y-auto py-2.5">
+      className="flex min-h-0 flex-1 flex-col items-center gap-2.5 overflow-y-auto py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {items.map((k) => {
         if (byKey.has(k)) {
           const p = byKey.get(k)!;
@@ -550,17 +550,9 @@ export default function MonitorAside({ mode, onMode }: { mode: MonMode; onMode: 
     return () => document.removeEventListener("touchmove", tm);
   }, []);
 
-  // 隐藏(手机含缩起)=零占位,只留标题栏行的心电图图标:悬浮贴右上,与小电脑对称,点击展开
-  if (mode === "hidden" || (isMobile && mode === "mini")) {
-    return (
-      <div className="relative h-full w-0 shrink-0">
-        <button type="button" onClick={cycle} title={t("展开监控栏")}
-          className="absolute right-0 top-0 flex h-9 w-10 cursor-pointer items-center justify-center border-b border-border/70 bg-card text-base font-semibold text-foreground hover:text-primary">
-          <Activity className="inline size-4" />
-        </button>
-      </div>
-    );
-  }
+  // 隐藏(手机含缩起)=整栏不渲染;入口=tab 条最右的心电图钮(App 层,占位不遮挡,
+  // 位置=屏幕最右与小电脑对称;监控栏 open/mini 时其头部心电图天然在最右,入口不重复出现)
+  if (mode === "hidden" || (isMobile && mode === "mini")) return null;
 
   return (
     <div className="relative flex h-full shrink-0 flex-col border-l border-border/70 bg-card"

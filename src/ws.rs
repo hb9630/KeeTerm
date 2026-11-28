@@ -79,6 +79,7 @@ fn build_command(entry: &Entry, ctn: &str, engine: &str, session: &str) -> Comma
 
     let mut argv: Vec<String> = vec![
         "-o".into(), "StrictHostKeyChecking=accept-new".into(),
+        "-o".into(), "LogLevel=ERROR".into(),   // 抑制首连 known_hosts 提示等 stderr 噪声(闪现后被 tmux 清屏盖掉,像"一闪而过的错误")
         "-o".into(), "ConnectTimeout=20".into(),
         "-o".into(), "ServerAliveInterval=30".into(),
         "-o".into(), "ServerAliveCountMax=4".into(),
@@ -101,7 +102,9 @@ fn build_command(entry: &Entry, ctn: &str, engine: &str, session: &str) -> Comma
         let run = format!("exec -it {} sh -c {}", shq(ctn), shq(&inner));
         let full = match engine {
             "docker" | "podman" => format!("{engine} {run}"),
-            _ => format!("command -v docker >/dev/null 2>&1 && docker {run} || podman {run}"),
+            // 引擎探测:CLI 在且 daemon 活着才走 docker——只查 CLI 会闪 "Cannot connect to the
+            // Docker daemon at unix:///var/run/docker.sock" 再 fallback podman(一闪而过的错误)
+            _ => format!("command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 && docker {run} || podman {run}"),
         };
         argv.push("-tt".into());
         argv.push(full);

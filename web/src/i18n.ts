@@ -55,6 +55,8 @@ const EN: Record<string, string> = {
   "展开/缩起监控栏": "Toggle monitor panel",
   "展开监控栏": "Open monitor panel",
   "循环:展开 → 缩起 → 隐藏": "Cycle: open → mini → hidden",
+  "切换标签": "Switch tab",
+  "无标签,点 + 新建": "No tabs, tap + to create",
   "暂无监控项": "No monitors yet",
   "配置监控项(主机 / URL 探针)": "Configure monitors (hosts / URL probes)",
   "主机(采集 CPU/内存/存储/GPU)": "Hosts (CPU/mem/disk/GPU)",

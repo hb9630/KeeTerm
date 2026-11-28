@@ -188,6 +188,102 @@ async fn mon_cfg_get(headers: HeaderMap) -> Response {
     Json(monitor::cfg_get()).into_response()
 }
 
+/// agent 增量加监控:登录拿 cookie 后 POST {hosts:[…], probes:[{name,url}…]},
+/// 合并去重不动既有条目,几秒内出数据(立即补采一轮)
+async fn mon_add(headers: HeaderMap, Json(body): Json<monitor::CfgIn>) -> Response {
+    let auth = AUTH.get().expect("auth init");
+    if !auth.check(&headers) { return StatusCode::UNAUTHORIZED.into_response(); }
+    match monitor::cfg_add(&body) {
+        Ok(n) => {
+            if let Some(reg) = REGK.get() {
+                let reg = reg.clone();
+                tokio::spawn(async move { monitor::tick_now(&reg).await; });
+            }
+            Json(serde_json::json!({ "ok": true, "added": n })).into_response()
+        }
+        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct MonDelIn {
+    #[serde(default)] hosts: Vec<String>,
+    #[serde(default)] probes: Vec<String>,   // 按 url 删
+}
+/// agent 增量删监控:host 按名、probe 按 url;不在的跳过(幂等)
+async fn mon_del(headers: HeaderMap, Json(body): Json<MonDelIn>) -> Response {
+    let auth = AUTH.get().expect("auth init");
+    if !auth.check(&headers) { return StatusCode::UNAUTHORIZED.into_response(); }
+    match monitor::cfg_del(&body.hosts, &body.probes) {
+        Ok(n) => {
+            if let Some(reg) = REGK.get() {
+                let reg = reg.clone();
+                tokio::spawn(async move { monitor::tick_now(&reg).await; });
+            }
+            Json(serde_json::json!({ "ok": true, "removed": n })).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+// ---------- agent 主机管理:增删一条 curl 完成登记(ssh config)+监控联动 ----------
+#[derive(serde::Deserialize)]
+struct HostOp {
+    op: String,              // add | del
+    name: String,
+    #[serde(default)] addr: String,
+    #[serde(default)] port: u16,      // 0 → 22
+    #[serde(default)] user: String,   // 空 → root
+    #[serde(default)] note: String,
+    #[serde(default)] monitor: bool,  // add:顺带加监控 / del:顺带删监控(默认 false,只动主机)
+}
+async fn host_op(State((reg, auth)): State<Shared>, headers: HeaderMap, Json(b): Json<HostOp>) -> Response {
+    if !auth.check(&headers) { return StatusCode::UNAUTHORIZED.into_response(); }
+    let name = b.name.trim().to_string();
+    if name.is_empty() || name == "local" || !name.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c)) {
+        return (StatusCode::BAD_REQUEST, "名字仅限字母数字._- 且不能是 local").into_response();
+    }
+    let mon_sync = |on: bool| {
+        if !on { return; }
+        if let Some(r) = REGK.get() {
+            let r = r.clone();
+            tokio::spawn(async move { monitor::tick_now(&r).await; });
+        }
+    };
+    match b.op.as_str() {
+        "add" => {
+            let user = if b.user.trim().is_empty() { "root".to_string() } else { b.user.trim().to_string() };
+            let port = if b.port == 0 { 22 } else { b.port };
+            if let Err(e) = reg.ssh_config_add(&name, &b.addr, port, &user, &b.note) {
+                return (StatusCode::BAD_REQUEST, e).into_response();
+            }
+            let mut mon_added = 0;
+            if b.monitor {
+                match monitor::cfg_add(&monitor::CfgIn { hosts: vec![name.clone()], probes: vec![] }) {
+                    Ok(n) => mon_added = n,
+                    Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("主机已登记但监控添加失败:{e}")).into_response(),
+                }
+            }
+            mon_sync(b.monitor);
+            Json(serde_json::json!({ "ok": true, "host": name, "mon_added": mon_added })).into_response()
+        }
+        "del" => {
+            let removed_cfg = reg.ssh_config_del(&name).unwrap_or(false);
+            // targets.toml 同名条目一并清(防 toml 残留让 resolve 复活)
+            let mut list = reg.load_toml_pub();
+            list.retain(|x| x.name != name);
+            let _ = reg.save_toml(&list);
+            let mut mon_removed = 0;
+            if b.monitor {
+                if let Ok(n) = monitor::cfg_del(&[name.clone()], &[]) { mon_removed = n; }
+            }
+            mon_sync(b.monitor);
+            Json(serde_json::json!({ "ok": true, "host": name, "ssh_config_removed": removed_cfg, "mon_removed": mon_removed })).into_response()
+        }
+        _ => (StatusCode::BAD_REQUEST, "op 仅支持 add|del").into_response(),
+    }
+}
+
 async fn mon_cfg_post(headers: HeaderMap, Json(body): Json<monitor::CfgIn>) -> Response {
     let auth = AUTH.get().expect("auth init");
     if !auth.check(&headers) { return StatusCode::UNAUTHORIZED.into_response(); }
@@ -326,6 +422,9 @@ async fn main() -> Result<()> {
         .route("/api/t/targets/{name}", delete(targets_remove))
         .route("/api/t/mon", get(mon_data))
         .route("/api/t/mon/cfg", get(mon_cfg_get).post(mon_cfg_post))
+        .route("/api/t/mon/add", post(mon_add))
+        .route("/api/t/mon/del", post(mon_del))
+        .route("/api/t/host", post(host_op))
         .route("/api/t/target/{target}/ping", get(target_ping))
         .route("/api/t/target/{target}/containers", get(containers))
         .route("/api/t/target/{target}/tmux", get(tmux_list))

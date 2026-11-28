@@ -243,6 +243,61 @@ pub fn cfg_save(body: &CfgIn) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// 增量添加(agent 快捷入口 POST /api/t/mon/add):与既有配置合并去重
+/// (host 按名、probe 按 url),不动其他条目;校验规则与 cfg_save 一致
+pub fn cfg_add(body: &CfgIn) -> Result<usize, String> {
+    let mut cur = load();
+    let mut added = 0usize;
+    for h in &body.hosts {
+        let n = h.trim();
+        if n.is_empty() || cur.hosts.iter().any(|x| x.name == n) { continue; }
+        if !n.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c)) {
+            return Err(format!("主机名不合法:{n}"));
+        }
+        cur.hosts.push(MonHost { name: n.into() });
+        added += 1;
+    }
+    for p in &body.probes {
+        let n = p.name.trim();
+        let u = p.url.trim();
+        if n.is_empty() && u.is_empty() { continue; }
+        if n.is_empty() || u.is_empty() {
+            return Err("探针名称与 URL 都不能为空".into());
+        }
+        if !u.starts_with("http://") && !u.starts_with("https://") {
+            return Err(format!("URL 需以 http(s):// 开头:{u}"));
+        }
+        if cur.probes.iter().any(|x| x.url == u) { continue; }
+        cur.probes.push(MonProbe { name: n.into(), url: u.into() });
+        added += 1;
+    }
+    #[derive(serde::Serialize)]
+    struct File<'a> {
+        host: &'a [MonHost],
+        probe: &'a [MonProbe],
+    }
+    std::fs::write(mon_path(), toml::to_string_pretty(&File { host: &cur.hosts, probe: &cur.probes }).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    Ok(added)
+}
+
+/// 增量删(agent 快捷入口 POST /api/t/mon/del):host 按名、probe 按 url,不在的不算错
+pub fn cfg_del(hosts: &[String], probes: &[String]) -> Result<usize, String> {
+    let mut cur = load();
+    let before = cur.hosts.len() + cur.probes.len();
+    cur.hosts.retain(|h| !hosts.iter().any(|x| x.trim() == h.name));
+    cur.probes.retain(|p| !probes.iter().any(|u| u.trim() == p.url));
+    let removed = before - cur.hosts.len() - cur.probes.len();
+    #[derive(serde::Serialize)]
+    struct File<'a> {
+        host: &'a [MonHost],
+        probe: &'a [MonProbe],
+    }
+    std::fs::write(mon_path(), toml::to_string_pretty(&File { host: &cur.hosts, probe: &cur.probes }).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    Ok(removed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

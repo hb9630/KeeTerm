@@ -12,7 +12,7 @@ import MonitorAside, { readMonMode, type MonMode } from "./MonitorPanel";
 const CodeArea = lazy(() => import("./CodeArea"));
 import {
   Box, ChevronDown, ChevronRight, Container, Download, FolderTree, HardDrive, Info, Languages, Layers, Loader2, Monitor,
-  Pencil, Plus, Server, SquareTerminal, Terminal, Trash2, X, ZoomIn, ZoomOut,
+  Pencil, Plus, Server, SquareTerminal, Terminal, Trash2, X, ZoomIn, ZoomOut, Activity,
 } from "lucide-react";
 
 interface Target {
@@ -170,6 +170,14 @@ export default function App() {
   const [targets, setTargets] = useState<Target[] | null>(null);
   // 监控栏三态(open/mini/hidden):hidden 时 tab 条心电图钮出现作入口(全端,不只手机)
   const [monMode, setMonMode] = useState<MonMode>(readMonMode);
+  // 响应式视口宽:手机(<768)tab 条改下拉选择(tab 多时横滚把 +/∨ 挤没)
+  const [vw, setVw] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const r = () => setVw(window.innerWidth);
+    window.addEventListener("resize", r);
+    return () => window.removeEventListener("resize", r);
+  }, []);
+  const isMobile = vw < 768;
   // 左树展开状态:记住展开过的主机名单(刷新恢复=重新拉容器),收起即移出名单
   const [open, setOpen] = useState<Record<string, "loading" | { engine: string; list: Ctn[] }>>(() => {
     try {
@@ -677,9 +685,33 @@ export default function App() {
               <line x1="22" y1="52" x2="42" y2="52" stroke="#fff" strokeWidth="5" strokeLinecap="round" />
             </svg>
           </span>
-          {/* tab 区:横向滑动(手机一屏放不下几个),+ / ∨ 固定右侧不随滚 */}
+          {/* tab 区:手机=紧凑标签(短名+状态点,点一下即切;点当前 tab=关闭菜单);
+              桌面=完整横滑(拖拽排序+徽标+关闭钮)。+/∨/♥ 在同一滚动容器尾,紧跟最后一个 tab */}
           <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {tabs.map((tb, idx) => {
+          {isMobile ? tabs.map(tb => {
+                const k = tkey(tb);
+                const nm = tb.ctn ?? (targets?.find(x => x.name === tb.target)?.name || tb.target);
+                return (
+                  <button key={k}
+                    onClick={() => {
+                      if (active === k) setTabCtx({ x: window.innerWidth / 2, y: 40, k });   // 点当前 tab=管理菜单(关闭)
+                      else setActive(k);
+                    }}
+                    title={`${nm}${tb.session ? ` · tmux:${tb.session}` : ""}`}
+                    className={cn("flex shrink-0 cursor-pointer items-center gap-1 px-2.5 text-[13px]",
+                      active === k ? "bg-background font-medium text-foreground" : "text-muted-foreground")}>
+                    {live[k]?.idle
+                      ? <span title={t("已静默(干完/等确认)")} className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-500" />
+                      : live[k]?.busy
+                        ? <span title={t("运行中")} className="h-1.5 w-1.5 shrink-0 animate-spin rounded-full border-2 border-red-500/70 border-t-transparent" />
+                        : null}
+                    <span className="max-w-28 truncate">{nm}</span>
+                    {tb.session && <span className="shrink-0 rounded bg-muted px-1 text-[10px] leading-4 font-semibold text-muted-foreground" title="tmux 会话">T</span>}
+                    {tb.root && <span className="shrink-0 rounded bg-muted px-1 text-[10px] leading-4 text-muted-foreground" title={`分屏(${leafCount(tb.root)} 面板)`}>⊞{leafCount(tb.root)}</span>}
+                  </button>
+                );
+              })
+          : tabs.map((tb, idx) => {
             const k = tkey(tb);
             const name = targets?.find(x => x.name === tb.target)?.name || tb.target;
             const isDragged = drag?.k === k;
@@ -728,7 +760,7 @@ export default function App() {
             );
           })}
           {/* Windows Terminal 式:+=新标签登录本机;下拉=主机选择器(左栏的对话框版)。
-              放滚动容器内紧跟最后一个 tab(容器不占满整行,按钮不被顶到最右) */}
+              同滚动容器尾:紧跟最后一个 tab,不顶到最右 */}
           <div data-picker ref={pickRef} className="relative flex shrink-0 items-center gap-0.5 px-1.5">
             <button title={t("新标签:登录本机")} onClick={() => openTab({ target: "local" })}
               className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
@@ -763,6 +795,14 @@ export default function App() {
             )}
           </div>
           </div>
+          {/* 监控栏隐藏时的入口:滚动容器之外钉死 tab 条最右(不贴 tab);
+              open/mini 时监控栏头部自带心电图在最右,此钮隐去 */}
+          {monMode === "hidden" && (
+            <button title={t("展开监控栏")} onClick={() => setMonMode("open")}
+              className="flex shrink-0 cursor-pointer items-center px-2 text-muted-foreground hover:text-primary">
+              <Activity className="h-4 w-4" />
+            </button>
+          )}
         </div>
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {!tabs.length && (
@@ -1102,6 +1142,7 @@ function TermTab({ conn, keyId, visible, onClose, onBusy, onIdle, onWake, pane }
     const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
     const kind =
       ["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "svg"].includes(ext) ? "image"
+      : ["webm", "mp4", "m4v", "mov", "ogv"].includes(ext) ? "video"
       : ext === "html" || ext === "htm" ? "html"
       : ext === "pdf" ? "pdf"
       : ["md", "markdown", "mdown"].includes(ext) ? "md"
@@ -1268,6 +1309,9 @@ function TermTab({ conn, keyId, visible, onClose, onBusy, onIdle, onWake, pane }
                     }} /></div>
                 : <pre className="h-full w-full overflow-auto p-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap">{cur.text}</pre>)}
               {cur.url && cur.kind === "image" && <ImgView key={cur.path} url={cur.url} name={cur.name} />}
+              {cur.url && cur.kind === "video" && (
+                <video key={cur.url} src={cur.url} controls playsInline className="max-h-full max-w-full" />
+              )}
               {cur.url && cur.kind === "html" && <iframe src={cur.url} sandbox="allow-scripts" title={cur.name} className="h-full w-full border-0 bg-white" />}
               {cur.url && cur.kind === "pdf" && <iframe src={cur.url} title={cur.name} className="h-full w-full border-0" />}
             </div>

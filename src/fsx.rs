@@ -25,7 +25,8 @@ pub async fn run_on(entry: &Entry, ctn: &str, engine: &str, cmd: &str, timeout_s
     let inner = format!("exec {q} sh -c {}", shq(cmd));
     let full = match engine {
         "docker" | "podman" => format!("{engine} {inner}"),
-        _ => format!("command -v docker >/dev/null 2>&1 && docker {inner} || podman {inner}"),
+        // 引擎探测:CLI 在且 daemon 活着才走 docker(只查 CLI 时 docker daemon 没跑会闪 daemon 报错文本进输出)
+        _ => format!("command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 && docker {inner} || podman {inner}"),
     };
     // 容器命令包一层目标执行(local=本机 docker;ssh=远端)
     exec::run(entry, &full, timeout_s).await
